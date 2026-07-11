@@ -149,8 +149,11 @@ class activitydates {
                 }
             }
             if ($haschecked) {
-                $windows[$chunkkey] = $this->calculate_dates($settings, $windowindex);
+                $window = $this->calculate_dates($settings, $windowindex);
                 $windowindex++;
+                // Never preview a window apply_dates() would then skip: it never
+                // schedules anything to open after the end of the schedule.
+                $windows[$chunkkey] = $window['start'] > $settings->schedulefinish ? null : $window;
             } else {
                 $windows[$chunkkey] = null;
             }

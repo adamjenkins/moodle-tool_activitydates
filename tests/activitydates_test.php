@@ -364,6 +364,51 @@ final class activitydates_test extends \advanced_testcase {
         ));
     }
 
+    public function test_get_table_data_null_when_past_schedulefinish(): void {
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        // One quiz per session (activitiespersession = 1): quiz1's session starts on
+        // schedulestart, quiz2's session starts 7 days later. schedulefinish sits
+        // between the two, so quiz2's window start exceeds schedulefinish and
+        // apply_dates() would skip it entirely.
+        $quiz1 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz1']);
+        $quiz2 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz2']);
+        $start = strtotime('2030-01-01 09:00');
+        $finish = strtotime('2030-01-05 17:00');
+        $fromform = (object) [
+            'modtype' => 'quiz', 'schedulestart' => $start, 'schedulefinish' => $finish,
+            'sessionlength' => 7, 'activitiespersession' => 1,
+            'stayavailable' => 0, 'hideunselected' => 0, 'resetunselected' => 0,
+            'activitygroup' => [
+                'activity_' . $quiz1->cmid => 1,
+                'activity_' . $quiz2->cmid => 1,
+            ],
+        ];
+
+        $manager = new activitydates();
+        [, $settings] = $manager->update($fromform, $course->id);
+        $tabledata = $manager->get_table_data($settings);
+
+        $headers = array_values(array_filter($tabledata, fn($row) => $row['isheader']));
+        $this->assertCount(2, $headers);
+
+        // Session 1's window (start = schedulestart) is within schedulefinish: real window.
+        $this->assertNotNull($headers[0]['dates']);
+        $this->assertSame($start, $headers[0]['dates']['start']);
+
+        // Session 2's window start (2030-01-08 09:00) exceeds schedulefinish: the
+        // preview must not promise a window that apply_dates() will then skip.
+        $this->assertNull($headers[1]['dates']);
+
+        $datarows = array_values(array_filter($tabledata, fn($row) => !$row['isheader']));
+        $byname = [];
+        foreach ($datarows as $row) {
+            $byname[$row['name']] = $row;
+        }
+        $this->assertNull($byname['Quiz2']['dates']);
+    }
+
     public function test_process_unselected_hide_and_reset(): void {
         global $DB;
         $this->resetAfterTest();
