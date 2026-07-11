@@ -1,0 +1,14 @@
+{
+    "name": "adamjenkins/moodle-tool_activitydates",
+    "description": "A Moodle admin tool that bulk-schedules activity open/close dates across a course on a timed-session basis",
+    "type": "moodle-admin_tool",
+    "require": {
+        "moodle/moodle": "^5.0",
+        "moodle/composer-installer": "*"
+    },
+    "license": "GPL-3.0-or-later",
+    "require-dev": {
+        "squizlabs/php_codesniffer": "*",
+        "moodlehq/moodle-cs": "*"
+    }
+}
