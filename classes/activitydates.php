@@ -230,4 +230,92 @@ class activitydates {
         }
         return $modules;
     }
+
+    /**
+     * Write timeopen/timeclose for every selected, in-window row and
+     * refresh each activity's calendar events.
+     *
+     * @param array $tabledata rows from get_table_data().
+     * @param \stdClass $settings the course's activitydates config record.
+     * @return int the number of activities updated.
+     */
+    public function apply_dates(array $tabledata, \stdClass $settings): int {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        $modtype = $settings->modtype;
+        $columns = $DB->get_columns($modtype);
+        $updatecount = 0;
+        foreach ($tabledata as $row) {
+            if ($row['isheader']) {
+                continue;
+            }
+            if ($row['selected'] !== 'checked') {
+                $this->process_unselected($row, $settings);
+                continue;
+            }
+            if (empty($row['dates'])) {
+                continue;
+            }
+            // Never schedule anything to open after the end of the schedule.
+            if ($row['dates']['start'] > $settings->schedulefinish) {
+                continue;
+            }
+            $cm = $row['cm'];
+            $instance = (object) [
+                'id' => $cm->instance,
+                'timeopen' => $row['dates']['start'],
+                'timeclose' => empty($settings->stayavailable) ? $row['dates']['end'] : 0,
+            ];
+            if (isset($columns['timemodified'])) {
+                $instance->timemodified = time();
+            }
+            $DB->update_record($modtype, $instance);
+            set_coursemodule_visible($cm->id, true, true);
+            // Recreate the open/close calendar events. Pass the instance ID (not an
+            // object) so the callback re-reads the freshly updated record.
+            component_callback(
+                'mod_' . $modtype,
+                'refresh_events',
+                [$settings->courseid, $cm->instance, $cm]
+            );
+            \core\event\course_module_updated::create_from_cm($cm)->trigger();
+            $updatecount++;
+        }
+        rebuild_course_cache($settings->courseid, true);
+        return $updatecount;
+    }
+
+    /**
+     * Handle an unselected row: visibility per hideunselected, and an
+     * optional date reset (which deletes its calendar events) per
+     * resetunselected.
+     *
+     * @param array $row a get_table_data() data row.
+     * @param \stdClass $settings the course's activitydates config record.
+     */
+    public function process_unselected(array $row, \stdClass $settings): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        $cm = $row['cm'];
+        if (!empty($settings->hideunselected)) {
+            set_coursemodule_visible($cm->id, false, false);
+            \core\event\course_module_updated::create_from_cm($cm)->trigger();
+        } else {
+            set_coursemodule_visible($cm->id, true, true);
+        }
+        if (!empty($settings->resetunselected)) {
+            $DB->update_record($settings->modtype, (object) [
+                'id' => $cm->instance, 'timeopen' => 0, 'timeclose' => 0,
+            ]);
+            // With both times zero the callback deletes the calendar events.
+            component_callback(
+                'mod_' . $settings->modtype,
+                'refresh_events',
+                [$settings->courseid, $cm->instance, $cm]
+            );
+            \core\event\course_module_updated::create_from_cm($cm)->trigger();
+        }
+    }
 }

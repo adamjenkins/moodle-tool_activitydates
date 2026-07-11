@@ -226,4 +226,220 @@ final class activitydates_test extends \advanced_testcase {
         $this->assertSame($headers[1]['dates'], $byname['Quiz3']['dates']);
         $this->assertSame($headers[1]['dates'], $byname['Quiz4']['dates']);
     }
+
+    public function test_apply_dates_roundtrip(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $quizzes = [];
+        for ($i = 1; $i <= 4; $i++) {
+            $quizzes[] = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz' . $i]);
+        }
+        $start = strtotime('2030-01-01 09:00');
+        $finish = strtotime('2030-01-15 17:00');
+        $fromform = (object) [
+            'modtype' => 'quiz', 'schedulestart' => $start, 'schedulefinish' => $finish,
+            'sessionlength' => 7, 'activitiespersession' => 2,
+            'stayavailable' => 0, 'hideunselected' => 0, 'resetunselected' => 0,
+            'activitygroup' => [],
+        ];
+        foreach ($quizzes as $quiz) {
+            $fromform->activitygroup['activity_' . $quiz->cmid] = 1;
+        }
+
+        $manager = new activitydates();
+        [$selections, $settings] = $manager->update($fromform, $course->id);
+        $this->assertCount(4, $selections);
+
+        $count = $manager->apply_dates($manager->get_table_data($settings), $settings);
+        $this->assertSame(4, $count);
+
+        // Session 1 = quizzes 1-2, session 2 = quizzes 3-4.
+        $expectedopen  = [$start, $start, strtotime('2030-01-08 09:00'), strtotime('2030-01-08 09:00')];
+        $expectedclose = [strtotime('2030-01-07 17:00'), strtotime('2030-01-07 17:00'),
+                          strtotime('2030-01-14 17:00'), strtotime('2030-01-14 17:00')];
+        foreach ($quizzes as $i => $quiz) {
+            $record = $DB->get_record('quiz', ['id' => $quiz->id], '*', MUST_EXIST);
+            $this->assertEquals($expectedopen[$i], $record->timeopen, "Quiz $i timeopen");
+            $this->assertEquals($expectedclose[$i], $record->timeclose, "Quiz $i timeclose");
+
+            // Calendar events must exist and match (created by quiz_refresh_events).
+            $open = $DB->get_records(
+                'event',
+                ['modulename' => 'quiz', 'instance' => $quiz->id, 'eventtype' => 'open']
+            );
+            $this->assertCount(1, $open, "Quiz $i open event");
+            $this->assertEquals($record->timeopen, reset($open)->timestart);
+            $close = $DB->get_records(
+                'event',
+                ['modulename' => 'quiz', 'instance' => $quiz->id, 'eventtype' => 'close']
+            );
+            $this->assertCount(1, $close, "Quiz $i close event");
+            $this->assertEquals($record->timeclose, reset($close)->timestart);
+        }
+    }
+
+    public function test_apply_dates_stayavailable(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        // Pre-set a close date to prove stayavailable overwrites it with 0.
+        $quiz = $generator->create_module('quiz', ['course' => $course->id,
+            'timeopen' => strtotime('2029-01-01'), 'timeclose' => strtotime('2029-02-01')]);
+        $fromform = (object) [
+            'modtype' => 'quiz',
+            'schedulestart' => strtotime('2030-01-01 09:00'),
+            'schedulefinish' => strtotime('2030-01-15 17:00'),
+            'sessionlength' => 7, 'activitiespersession' => 1,
+            'stayavailable' => 1, 'hideunselected' => 0, 'resetunselected' => 0,
+            'activitygroup' => ['activity_' . $quiz->cmid => 1],
+        ];
+        $manager = new activitydates();
+        [, $settings] = $manager->update($fromform, $course->id);
+        $manager->apply_dates($manager->get_table_data($settings), $settings);
+
+        $record = $DB->get_record('quiz', ['id' => $quiz->id], '*', MUST_EXIST);
+        $this->assertEquals(strtotime('2030-01-01 09:00'), $record->timeopen);
+        $this->assertEquals(0, $record->timeclose);
+        $this->assertCount(0, $DB->get_records(
+            'event',
+            ['modulename' => 'quiz', 'instance' => $quiz->id, 'eventtype' => 'close']
+        ));
+    }
+
+    public function test_apply_dates_skips_past_schedulefinish(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        // One quiz per session (activitiespersession = 1): quiz1's session starts on
+        // schedulestart, quiz2's session starts 7 days later. schedulefinish sits
+        // between the two, so quiz2's window start exceeds schedulefinish.
+        $quiz1 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz1']);
+        $quiz2 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz2']);
+        $start = strtotime('2030-01-01 09:00');
+        $finish = strtotime('2030-01-05 17:00');
+        $fromform = (object) [
+            'modtype' => 'quiz', 'schedulestart' => $start, 'schedulefinish' => $finish,
+            'sessionlength' => 7, 'activitiespersession' => 1,
+            'stayavailable' => 0, 'hideunselected' => 0, 'resetunselected' => 0,
+            'activitygroup' => [
+                'activity_' . $quiz1->cmid => 1,
+                'activity_' . $quiz2->cmid => 1,
+            ],
+        ];
+
+        $manager = new activitydates();
+        [, $settings] = $manager->update($fromform, $course->id);
+        $count = $manager->apply_dates($manager->get_table_data($settings), $settings);
+
+        // Only quiz1's window (start = schedulestart) is within schedulefinish.
+        $this->assertSame(1, $count);
+
+        $record1 = $DB->get_record('quiz', ['id' => $quiz1->id], '*', MUST_EXIST);
+        $this->assertEquals($start, $record1->timeopen);
+        $this->assertEquals(strtotime('2030-01-07 17:00'), $record1->timeclose);
+        $this->assertCount(1, $DB->get_records(
+            'event',
+            ['modulename' => 'quiz', 'instance' => $quiz1->id, 'eventtype' => 'open']
+        ));
+
+        // Quiz2's window start (2030-01-08 09:00) exceeds schedulefinish, so it must
+        // be skipped entirely: no write, no calendar events, no hide/reset side effects.
+        $record2 = $DB->get_record('quiz', ['id' => $quiz2->id], '*', MUST_EXIST);
+        $this->assertEquals(0, $record2->timeopen);
+        $this->assertEquals(0, $record2->timeclose);
+        $this->assertCount(0, $DB->get_records(
+            'event',
+            ['modulename' => 'quiz', 'instance' => $quiz2->id, 'eventtype' => 'open']
+        ));
+        $this->assertCount(0, $DB->get_records(
+            'event',
+            ['modulename' => 'quiz', 'instance' => $quiz2->id, 'eventtype' => 'close']
+        ));
+    }
+
+    public function test_process_unselected_hide_and_reset(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $quiz1 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz1']);
+        $quiz2 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz2']);
+        $start = strtotime('2030-02-01 09:00');
+        $finish = strtotime('2030-02-15 17:00');
+
+        // Pass 1: select both quizzes to seed real dates and calendar events.
+        $seedform = (object) [
+            'modtype' => 'quiz', 'schedulestart' => $start, 'schedulefinish' => $finish,
+            'sessionlength' => 7, 'activitiespersession' => 2,
+            'stayavailable' => 0, 'hideunselected' => 0, 'resetunselected' => 0,
+            'activitygroup' => [
+                'activity_' . $quiz1->cmid => 1,
+                'activity_' . $quiz2->cmid => 1,
+            ],
+        ];
+        $manager = new activitydates();
+        [, $seedsettings] = $manager->update($seedform, $course->id);
+        $manager->apply_dates($manager->get_table_data($seedsettings), $seedsettings);
+
+        $expectedopen = $start;
+        $expectedclose = strtotime('2030-02-07 17:00');
+        $this->assertEquals(
+            $expectedopen,
+            $DB->get_record('quiz', ['id' => $quiz2->id], '*', MUST_EXIST)->timeopen
+        );
+        $this->assertCount(1, $DB->get_records(
+            'event',
+            ['modulename' => 'quiz', 'instance' => $quiz2->id, 'eventtype' => 'open']
+        ));
+
+        // Pass 2: keep only quiz1 selected, with hideunselected and resetunselected on.
+        $fromform = (object) [
+            'modtype' => 'quiz', 'schedulestart' => $start, 'schedulefinish' => $finish,
+            'sessionlength' => 7, 'activitiespersession' => 2,
+            'stayavailable' => 0, 'hideunselected' => 1, 'resetunselected' => 1,
+            'activitygroup' => [
+                'activity_' . $quiz1->cmid => 1,
+            ],
+        ];
+        [, $settings] = $manager->update($fromform, $course->id);
+        $manager->apply_dates($manager->get_table_data($settings), $settings);
+
+        // Unselected quiz2: hidden, dates zeroed, calendar events deleted.
+        $cm2 = $DB->get_record('course_modules', ['id' => $quiz2->cmid], '*', MUST_EXIST);
+        $this->assertEquals(0, $cm2->visible);
+        $record2 = $DB->get_record('quiz', ['id' => $quiz2->id], '*', MUST_EXIST);
+        $this->assertEquals(0, $record2->timeopen);
+        $this->assertEquals(0, $record2->timeclose);
+        $this->assertCount(0, $DB->get_records(
+            'event',
+            ['modulename' => 'quiz', 'instance' => $quiz2->id, 'eventtype' => 'open']
+        ));
+        $this->assertCount(0, $DB->get_records(
+            'event',
+            ['modulename' => 'quiz', 'instance' => $quiz2->id, 'eventtype' => 'close']
+        ));
+
+        // Control: selected quiz1 still has its dates and calendar events.
+        $cm1 = $DB->get_record('course_modules', ['id' => $quiz1->cmid], '*', MUST_EXIST);
+        $this->assertEquals(1, $cm1->visible);
+        $record1 = $DB->get_record('quiz', ['id' => $quiz1->id], '*', MUST_EXIST);
+        $this->assertEquals($expectedopen, $record1->timeopen);
+        $this->assertEquals($expectedclose, $record1->timeclose);
+        $this->assertCount(1, $DB->get_records(
+            'event',
+            ['modulename' => 'quiz', 'instance' => $quiz1->id, 'eventtype' => 'open']
+        ));
+        $this->assertCount(1, $DB->get_records(
+            'event',
+            ['modulename' => 'quiz', 'instance' => $quiz1->id, 'eventtype' => 'close']
+        ));
+    }
 }
