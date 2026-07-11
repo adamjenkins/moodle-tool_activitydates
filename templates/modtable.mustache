@@ -1,0 +1,151 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template tool_activitydates/modtable
+
+    Table of a course's activities of one module type, with their current
+    open/close dates and the sessions they will be scheduled into.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * modname string - the module type name (e.g. quiz), used in the activity links
+    * showquestioncount bool - whether to show the question count column
+    * colcount int - number of visible columns, drives the session header colspan
+    * tabledata array - list of header and activity rows
+      * isheader bool - true for a session header row
+      * dates object - the session window (absent when the session has no selection)
+        * sessionnumber int - the 1-based session number
+        * start int - session open timestamp
+        * end int - session close timestamp
+      * id int - the course module id (activity rows)
+      * name string - the activity name (activity rows)
+      * intro string - the activity description (activity rows)
+      * selected string - "checked" when the activity is selected (activity rows)
+      * questioncount int - number of questions (quiz activity rows)
+      * timeopen int - current open timestamp, 0 when unset (activity rows)
+      * timeclose int - current close timestamp, 0 when unset (activity rows)
+
+    Example context (json):
+    {
+        "modname": "quiz",
+        "showquestioncount": true,
+        "colcount": 6,
+        "tabledata": [
+            {
+                "isheader": true,
+                "dates": {"sessionnumber": 1, "start": 1704447600, "end": 1705052400}
+            },
+            {
+                "isheader": false,
+                "id": 56,
+                "name": "Quiz 1",
+                "intro": "First quiz",
+                "selected": "checked",
+                "questioncount": 5,
+                "timeopen": 1704447600,
+                "timeclose": 1705052400
+            }
+        ]
+    }
+}}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>
+                        <input type="checkbox" name="selectall" id="id_selectall"
+                            title="{{#str}}toggleselection, tool_activitydates{{/str}}">
+                    </th>
+                    <th class="col-md-0">{{#str}}name{{/str}}</th>
+                    <th class="col-md-4">{{#str}}description{{/str}}</th>
+                    {{#showquestioncount}}
+                        <th class="col-md-1">{{#str}}questioncount, tool_activitydates{{/str}}</th>
+                    {{/showquestioncount}}
+                    <th class="col-md-2">{{#str}}from, tool_activitydates{{/str}}</th>
+                    <th class="col-md-2">{{#str}}to, tool_activitydates{{/str}}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{^tabledata}}
+                    <tr>
+                        <td colspan="{{colcount}}">{{#str}}nomodulesincourse, tool_activitydates{{/str}}</td>
+                    </tr>
+                {{/tabledata}}
+                {{#tabledata}}
+                    {{#isheader}}
+                        <tr>
+                            <td colspan="{{colcount}}">
+                                {{#dates}}
+                                    {{#str}}session, tool_activitydates{{/str}} {{sessionnumber}}:
+                                    {{< core/time_element}}
+                                        {{$timestampval}}{{start}}{{/timestampval}}
+                                        {{$userdateformatval}}%a %d %b %Y %H:%M{{/userdateformatval}}
+                                    {{/ core/time_element}}
+                                    &ndash;
+                                    {{< core/time_element}}
+                                        {{$timestampval}}{{end}}{{/timestampval}}
+                                        {{$userdateformatval}}%a %d %b %Y %H:%M{{/userdateformatval}}
+                                    {{/ core/time_element}}
+                                {{/dates}}
+                                {{^dates}}
+                                    {{#str}}session, tool_activitydates{{/str}} &mdash;
+                                {{/dates}}
+                            </td>
+                        </tr>
+                    {{/isheader}}
+                    {{^isheader}}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="select" id="id_cmid_{{id}}"
+                                    aria-label="{{name}}" {{selected}}>
+                            </td>
+                            <td><a href="{{config.wwwroot}}/mod/{{modname}}/view.php?id={{id}}">{{name}}</a></td>
+                            <td>{{intro}}</td>
+                            {{#showquestioncount}}
+                                <td>{{questioncount}}</td>
+                            {{/showquestioncount}}
+                            <td>
+                                {{#timeopen}}
+                                    {{< core/time_element}}
+                                        {{$timestampval}}{{timeopen}}{{/timestampval}}
+                                        {{$userdateformatval}}%a %d %b %Y %H:%M{{/userdateformatval}}
+                                    {{/ core/time_element}}
+                                {{/timeopen}}
+                                {{^timeopen}}&mdash;{{/timeopen}}
+                            </td>
+                            <td>
+                                {{#timeclose}}
+                                    {{< core/time_element}}
+                                        {{$timestampval}}{{timeclose}}{{/timestampval}}
+                                        {{$userdateformatval}}%a %d %b %Y %H:%M{{/userdateformatval}}
+                                    {{/ core/time_element}}
+                                {{/timeclose}}
+                                {{^timeclose}}&mdash;{{/timeclose}}
+                            </td>
+                        </tr>
+                    {{/isheader}}
+                {{/tabledata}}
+            </tbody>
+        </table>
+    </div>
+</div>
