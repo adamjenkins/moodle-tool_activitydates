@@ -24,9 +24,12 @@
 
 namespace tool_activitydates;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+
 /**
  * Tests for modtypes class.
  */
+#[CoversClass(modtypes::class)]
 final class modtypes_test extends \advanced_testcase {
     public function test_has_date_columns(): void {
         $this->assertTrue(modtypes::has_date_columns('quiz'));
