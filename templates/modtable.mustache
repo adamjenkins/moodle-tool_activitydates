@@ -34,15 +34,21 @@
       * isheader bool - true for a session header row
       * dates object - the session window (absent when the session has no selection)
         * sessionnumber int - the 1-based session number
-        * start int - session open timestamp
-        * end int - session close timestamp
+        * startformatted string - session open date formatted for display
+        * startattr string - session open date for the time element's datetime attribute
+        * endformatted string - session close date formatted for display
+        * endattr string - session close date for the time element's datetime attribute
       * id int - the course module id (activity rows)
       * name string - the activity name (activity rows)
       * intro string - the activity description (activity rows)
       * selected string - "checked" when the activity is selected (activity rows)
       * questioncount int - number of questions (quiz activity rows)
       * timeopen int - current open timestamp, 0 when unset (activity rows)
+      * timeopenformatted string - current open date formatted for display, empty when unset
+      * timeopenattr string - current open date for the datetime attribute, empty when unset
       * timeclose int - current close timestamp, 0 when unset (activity rows)
+      * timecloseformatted string - current close date formatted for display, empty when unset
+      * timecloseattr string - current close date for the datetime attribute, empty when unset
 
     Example context (json):
     {
@@ -52,7 +58,13 @@
         "tabledata": [
             {
                 "isheader": true,
-                "dates": {"sessionnumber": 1, "start": 1704447600, "end": 1705052400}
+                "dates": {
+                    "sessionnumber": 1,
+                    "startformatted": "Fri 05 Jan 2024 10:00",
+                    "startattr": "2024-01-05T10:00",
+                    "endformatted": "Fri 12 Jan 2024 10:00",
+                    "endattr": "2024-01-12T10:00"
+                }
             },
             {
                 "isheader": false,
@@ -62,7 +74,11 @@
                 "selected": "checked",
                 "questioncount": 5,
                 "timeopen": 1704447600,
-                "timeclose": 1705052400
+                "timeopenformatted": "Fri 05 Jan 2024 10:00",
+                "timeopenattr": "2024-01-05T10:00",
+                "timeclose": 1705052400,
+                "timecloseformatted": "Fri 12 Jan 2024 10:00",
+                "timecloseattr": "2024-01-12T10:00"
             }
         ]
     }
@@ -97,15 +113,9 @@
                             <td colspan="{{colcount}}">
                                 {{#dates}}
                                     {{#str}}session, tool_activitydates{{/str}} {{sessionnumber}}:
-                                    {{< core/time_element}}
-                                        {{$timestampval}}{{start}}{{/timestampval}}
-                                        {{$userdateformatval}}%a %d %b %Y %H:%M{{/userdateformatval}}
-                                    {{/ core/time_element}}
+                                    <time datetime="{{startattr}}">{{startformatted}}</time>
                                     &ndash;
-                                    {{< core/time_element}}
-                                        {{$timestampval}}{{end}}{{/timestampval}}
-                                        {{$userdateformatval}}%a %d %b %Y %H:%M{{/userdateformatval}}
-                                    {{/ core/time_element}}
+                                    <time datetime="{{endattr}}">{{endformatted}}</time>
                                 {{/dates}}
                                 {{^dates}}
                                     {{#str}}session, tool_activitydates{{/str}} &mdash;
@@ -126,19 +136,13 @@
                             {{/showquestioncount}}
                             <td>
                                 {{#timeopen}}
-                                    {{< core/time_element}}
-                                        {{$timestampval}}{{timeopen}}{{/timestampval}}
-                                        {{$userdateformatval}}%a %d %b %Y %H:%M{{/userdateformatval}}
-                                    {{/ core/time_element}}
+                                    <time datetime="{{timeopenattr}}">{{timeopenformatted}}</time>
                                 {{/timeopen}}
                                 {{^timeopen}}&mdash;{{/timeopen}}
                             </td>
                             <td>
                                 {{#timeclose}}
-                                    {{< core/time_element}}
-                                        {{$timestampval}}{{timeclose}}{{/timestampval}}
-                                        {{$userdateformatval}}%a %d %b %Y %H:%M{{/userdateformatval}}
-                                    {{/ core/time_element}}
+                                    <time datetime="{{timecloseattr}}">{{timecloseformatted}}</time>
                                 {{/timeclose}}
                                 {{^timeclose}}&mdash;{{/timeclose}}
                             </td>

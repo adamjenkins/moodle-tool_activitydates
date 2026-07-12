@@ -31,6 +31,7 @@ $string['activitiespersessionerror'] = 'Activities per session is {$a->activitie
 $string['activitydates:manage'] = 'Manage bulk activity dates';
 $string['activitydatesforcourse'] = 'Activity dates for {$a}';
 $string['activitytype'] = 'Activity type';
+$string['dateformat'] = '%a %d %b %Y %H:%M';
 $string['datesapplied'] = 'Updated dates for {$a->count} of {$a->modname}.';
 $string['eventdatesupdated'] = 'Activity dates updated';
 $string['eventdatesviewed'] = 'Activity dates viewed';

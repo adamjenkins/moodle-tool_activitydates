@@ -196,6 +196,13 @@ final class activitydates_test extends \advanced_testcase {
             $headers[1]['dates']['start']
         );
 
+        // Windows carry pre-formatted display strings for the template.
+        $this->assertStringContainsString('1 Jan 2030', $headers[0]['dates']['startformatted']);
+        $this->assertSame('2030-01-01T09:00', $headers[0]['dates']['startattr']);
+        $this->assertStringContainsString('8 Jan 2030', $headers[1]['dates']['startformatted']);
+        $this->assertNotEmpty($headers[0]['dates']['endformatted']);
+        $this->assertNotEmpty($headers[0]['dates']['endattr']);
+
         // Data rows: exact key shape and selected flags.
         $datarows = array_values(array_filter($tabledata, fn($row) => !$row['isheader']));
         $this->assertCount(4, $datarows);
@@ -208,7 +215,11 @@ final class activitydates_test extends \advanced_testcase {
             $this->assertArrayHasKey('questioncount', $row);
             $this->assertArrayHasKey('dates', $row);
             $this->assertArrayHasKey('timeopen', $row);
+            $this->assertArrayHasKey('timeopenformatted', $row);
+            $this->assertArrayHasKey('timeopenattr', $row);
             $this->assertArrayHasKey('timeclose', $row);
+            $this->assertArrayHasKey('timecloseformatted', $row);
+            $this->assertArrayHasKey('timecloseattr', $row);
         }
 
         $byname = [];

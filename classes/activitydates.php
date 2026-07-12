@@ -28,6 +28,9 @@ namespace tool_activitydates;
  * Manages course-level activity date scheduling configuration.
  */
 class activitydates {
+    /** @var string strftime format producing a valid <time> datetime attribute value. */
+    private const DATETIMEATTRFORMAT = '%Y-%m-%dT%H:%M';
+
     /**
      * Upsert the course's activity dates configuration and its selections.
      *
@@ -159,6 +162,18 @@ class activitydates {
             }
         }
 
+        // Add display strings so the template needs no date logic of its own.
+        $dateformat = get_string('dateformat', 'tool_activitydates');
+        foreach ($windows as $chunkkey => $window) {
+            if ($window === null) {
+                continue;
+            }
+            $windows[$chunkkey]['startformatted'] = userdate($window['start'], $dateformat);
+            $windows[$chunkkey]['startattr'] = userdate($window['start'], self::DATETIMEATTRFORMAT, 99, false, false);
+            $windows[$chunkkey]['endformatted'] = userdate($window['end'], $dateformat);
+            $windows[$chunkkey]['endattr'] = userdate($window['end'], self::DATETIMEATTRFORMAT, 99, false, false);
+        }
+
         // Pass 2: emit header + data rows using the precomputed windows.
         $rows = [];
         foreach ($chunks as $chunkkey => $chunk) {
@@ -184,7 +199,15 @@ class activitydates {
                     'questioncount' => $questioncount,
                     'dates' => $window,
                     'timeopen' => $instance->timeopen ?? 0,
+                    'timeopenformatted' => empty($instance->timeopen)
+                        ? '' : userdate($instance->timeopen, $dateformat),
+                    'timeopenattr' => empty($instance->timeopen)
+                        ? '' : userdate($instance->timeopen, self::DATETIMEATTRFORMAT, 99, false, false),
                     'timeclose' => $instance->timeclose ?? 0,
+                    'timecloseformatted' => empty($instance->timeclose)
+                        ? '' : userdate($instance->timeclose, $dateformat),
+                    'timecloseattr' => empty($instance->timeclose)
+                        ? '' : userdate($instance->timeclose, self::DATETIMEATTRFORMAT, 99, false, false),
                 ];
             }
         }
