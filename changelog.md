@@ -2,6 +2,12 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
+## [0.1.1] - 2026-07-14
+
+### Fixed
+
+- The Description column on the Activity dates page showed raw HTML tags from the activity intro; tags are now stripped so the description renders as plain text.
+
 ## [0.1.0] - 2026-07-12
 
 ### Added
