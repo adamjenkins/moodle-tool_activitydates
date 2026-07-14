@@ -194,7 +194,7 @@ class activitydates {
                     'cm' => $cm,
                     'id' => $cm->id,
                     'name' => $cm->name,
-                    'intro' => $instance->intro ?? '',
+                    'intro' => strip_tags($instance->intro ?? ''),
                     'selected' => array_key_exists($cm->id, $selectedcmids) ? 'checked' : '',
                     'questioncount' => $questioncount,
                     'dates' => $window,

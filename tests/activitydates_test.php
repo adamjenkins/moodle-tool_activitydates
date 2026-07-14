@@ -153,7 +153,11 @@ final class activitydates_test extends \advanced_testcase {
         $course = $generator->create_course();
         $quizzes = [];
         for ($i = 1; $i <= 4; $i++) {
-            $quizzes[] = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz' . $i]);
+            $quizzes[] = $generator->create_module('quiz', [
+                'course' => $course->id,
+                'name' => 'Quiz' . $i,
+                'intro' => '<p>Description of <strong>Quiz' . $i . '</strong></p>',
+            ]);
         }
 
         // Session 1 = quiz1,quiz2. Session 2 = quiz3,quiz4.
@@ -226,6 +230,9 @@ final class activitydates_test extends \advanced_testcase {
         foreach ($datarows as $row) {
             $byname[$row['name']] = $row;
         }
+        // The description is plain text for the template: HTML tags are stripped.
+        $this->assertSame('Description of Quiz1', $byname['Quiz1']['intro']);
+
         $this->assertSame('', $byname['Quiz1']['selected']);
         $this->assertSame('checked', $byname['Quiz2']['selected']);
         $this->assertSame('checked', $byname['Quiz3']['selected']);
