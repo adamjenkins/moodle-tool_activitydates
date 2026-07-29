@@ -1,0 +1,22 @@
+# camp listing manifest — descriptive content for your plugin's page.
+# Edit freely and commit; camp ingests this file at each tagged release.
+# Schema: https://camp-registry.org/schema/listing.schema.json
+name: tool_activitydates
+summary: 'An admin tool that bulk-schedules activity open and close dates across a course on a timed-session basis.'
+description: |
+  Pick a set of same-type activities (quizzes, choices, feedback, SCORM
+  packages — any module whose instance table has `timeopen`/`timeclose`
+  columns), split them into sessions, and write each session's window straight
+  into the modules' own dates. Students get native "Opens:/Closes:" display
+  and calendar events; no availability restrictions involved.
+labels:
+  # Required disclosure labels — pick all that apply (RFC §4.7):
+  #   fully-free | freemium | paid-service | external-account
+  #   donation-supported | commercial-support-available
+  - fully-free
+# screenshots:
+#   - path: .camp/screenshots/overview.png
+#     caption: Main view
+# links:
+#   docs: https://…
+#   issues: https://…
