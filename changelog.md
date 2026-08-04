@@ -2,6 +2,14 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
+## [0.1.2] - 2026-08-04
+
+### Added
+
+- The full GPL-3.0 licence text is now included as `LICENSE` in the repository
+  root. The plugin's licence is unchanged (GPL-3.0-or-later, as declared in
+  `composer.json`); the file was simply missing.
+
 ## [0.1.1] - 2026-07-14
 
 ### Fixed
