@@ -55,7 +55,11 @@ class activitydates_form extends \moodleform {
         $mform->addElement(
             'header',
             'activitydatesheader',
-            get_string('activitydatesforcourse', 'tool_activitydates', $course->shortname)
+            get_string(
+                'activitydatesforcourse',
+                'tool_activitydates',
+                format_string($course->shortname, true, ['context' => \context_course::instance($courseid)])
+            )
         );
         $mform->setExpanded('activitydatesheader');
 
