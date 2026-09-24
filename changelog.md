@@ -2,7 +2,20 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
-## [Unreleased]
+## [1.0.0] - 2026-09-24
+
+First stable release.
+
+### Changed
+
+- Maturity is now stable.
+- CI tests only Moodle 5.2 on PHP 8.4 (pgsql and mariadb). The plugin still
+  declares support for Moodle 5.0-5.2.
+
+### Security
+
+- The form header now shows the course short name through `format_string()`
+  instead of raw, so any markup in it is cleaned before output.
 
 ### Added
 
