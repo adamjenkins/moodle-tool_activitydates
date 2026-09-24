@@ -13,7 +13,7 @@ A Moodle admin tool that bulk-schedules activity open and close dates across a c
 
 ## How it works
 
-From a course's administration menu, a teacher or manager opens **Activity dates**, picks an activity type, and sets a schedule start date, finish date, session length (in days), and how many activities go in each session. The tool splits the course's activities of that type into sessions in course order, and for each selected activity writes an open date at the start of its session and a close date at the end of it (unless "Stay available after session finish" is set, in which case no close date is written).
+From a course's administration menu, a teacher or manager opens **Activity dates**, picks an activity type, and sets a schedule start date, finish date, session length (in days), and how many activities go in each session. The tool splits the course's activities of that type into sessions in course order (the order they appear on the course page, so an activity inside a subsection counts at the subsection's position), and for each selected activity writes an open date at the start of its session and a close date at the end of it (unless "Stay available after session finish" is set, in which case no close date is written).
 
 Activities left unselected are untouched by default, but can optionally be hidden and/or have their dates reset.
 

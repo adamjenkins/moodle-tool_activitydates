@@ -240,7 +240,8 @@ class activitydates {
     }
 
     /**
-     * Get the course modules of the configured module type, in course order.
+     * Get the course modules of the configured module type, in course-page
+     * order (activities in a subsection appear where the subsection sits).
      *
      * @param \stdClass $settings the course's activitydates config record.
      * @return array cm_info objects keyed by coursemoduleid.
@@ -254,7 +255,7 @@ class activitydates {
             }
             $modules[$cm->id] = $cm;
         }
-        return $modules;
+        return local\course_order::sort($modinfo, $modules);
     }
 
     /**

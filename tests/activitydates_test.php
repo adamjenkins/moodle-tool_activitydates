@@ -245,6 +245,54 @@ final class activitydates_test extends \advanced_testcase {
         $this->assertSame($headers[1]['dates'], $byname['Quiz4']['dates']);
     }
 
+    /**
+     * Activities inside a subsection are listed, and grouped into sessions,
+     * where the subsection sits on the course page. Its content lives in a
+     * delegated section numbered after all listed sections, so walking
+     * sections by number would put it at the very end of the course.
+     */
+    public function test_get_modules_subsection_order(): void {
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course(['numsections' => 2], ['createsections' => true]);
+
+        // Section 1: quiz1, then the subsection (holding quiz2), then quiz3. Section 2: quiz4.
+        $quiz1 = $generator->create_module('quiz', ['course' => $course->id, 'section' => 1]);
+        $subsection = $generator->create_module('subsection', ['course' => $course->id, 'section' => 1]);
+        $delegated = get_fast_modinfo($course->id)->get_section_info_by_component('mod_subsection', $subsection->id);
+        $quiz2 = $generator->create_module('quiz', ['course' => $course->id, 'section' => $delegated->section]);
+        $quiz3 = $generator->create_module('quiz', ['course' => $course->id, 'section' => 1]);
+        $quiz4 = $generator->create_module('quiz', ['course' => $course->id, 'section' => 2]);
+        $expected = array_map('intval', [$quiz1->cmid, $quiz2->cmid, $quiz3->cmid, $quiz4->cmid]);
+
+        $fromform = (object) [
+            'modtype' => 'quiz',
+            'schedulestart' => strtotime('2030-01-01 09:00'),
+            'schedulefinish' => strtotime('2030-01-31 17:00'),
+            'sessionlength' => 7,
+            'activitiespersession' => 2,
+            'stayavailable' => 0,
+            'hideunselected' => 0,
+            'resetunselected' => 0,
+            'activitygroup' => [
+                'activity_' . $quiz1->cmid => 1,
+                'activity_' . $quiz2->cmid => 1,
+                'activity_' . $quiz3->cmid => 1,
+                'activity_' . $quiz4->cmid => 1,
+            ],
+        ];
+        $manager = new activitydates();
+        [, $settings] = $manager->update($fromform, $course->id);
+
+        $this->assertSame($expected, array_map('intval', array_keys(activitydates::get_modules($settings))));
+
+        // Sessions are chunked in that order: quiz1 + quiz2 open together in session 1.
+        $datarows = array_values(array_filter($manager->get_table_data($settings), fn($row) => !$row['isheader']));
+        $this->assertSame($expected, array_map('intval', array_column($datarows, 'id')));
+        $this->assertSame(1, $datarows[1]['dates']['sessionnumber']);
+        $this->assertSame(2, $datarows[2]['dates']['sessionnumber']);
+    }
+
     public function test_apply_dates_roundtrip(): void {
         global $DB;
         $this->resetAfterTest();

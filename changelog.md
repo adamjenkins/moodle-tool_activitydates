@@ -2,6 +2,14 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- The activity table, and the sessions dates are assigned from, now follow the
+  course page: activities inside a subsection are listed where the subsection
+  sits instead of after every other section.
+
 ## [0.1.2] - 2026-08-04
 
 ### Added
