@@ -4,6 +4,12 @@ All notable changes to `tool_activitydates` are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- A GitHub Actions workflow that submits each pushed `v*` tag to the Moodle
+  Marketplace via `moodlehq/moodle-plugin-release` (needs the
+  `MOODLE_MARKETPLACE_TOKEN` repository secret).
+
 ### Fixed
 
 - The activity table, and the sessions dates are assigned from, now follow the
