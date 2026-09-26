@@ -96,15 +96,15 @@ final class tabs_test extends \advanced_testcase {
         $PAGE->set_context(\context_course::instance($course->id));
 
         $labels = ['dates' => 'Activity dates', 'locks' => 'Grade locks'];
-        foreach ($labels as $current => $label) {
+        foreach (array_keys($labels) as $current) {
             $html = tabs::render((int) $course->id, $current);
-            foreach ($labels as $id => $otherlabel) {
-                $pattern = '~class="nav-link active"[^>]*>' . preg_quote($otherlabel, '~') . '</a>~';
+            foreach ($labels as $id => $label) {
+                $pattern = '~class="nav-link active"[^>]*>' . preg_quote($label, '~') . '</a>~';
                 if ($id === $current) {
                     $this->assertMatchesRegularExpression($pattern, $html);
                 } else {
                     $this->assertDoesNotMatchRegularExpression($pattern, $html);
-                    $this->assertStringContainsString('>' . $otherlabel . '</a>', $html);
+                    $this->assertStringContainsString('>' . $label . '</a>', $html);
                 }
             }
         }
