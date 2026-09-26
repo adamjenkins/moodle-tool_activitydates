@@ -91,6 +91,61 @@ For **unselected** activities: hidden if *Hide unselected* is on (otherwise show
 
 Anything scheduled to open after the **Finish** date is skipped — both in the preview and on apply — so you never see a window the tool would refuse to write.
 
+## Grade locks tab
+
+The **Grade locks** tab, next to **Activity dates** at the top of the page, schedules **gradebook lock dates** for a course's graded activities on the same session basis. Once a grade item is locked, its grades can no longer be changed by the activity (a late submission or a regrade no longer reaches the gradebook) until a teacher unlocks it.
+
+Who can use it: users with the `tool/activitydates:managelocks` capability in the course — by default **editing teachers** and **managers** (it is cloned from `moodle/grade:manage` and carries a `RISK_DATALOSS` warning). The two tabs are separate: a user who holds only one of the two capabilities sees only that page and no tab row, and a user with only `managelocks` who opens the dates page is taken to the Grade locks page.
+
+### 1. Open it
+
+From the course administration menu, click **Activity dates**, then the **Grade locks** tab. If the course has no activities with gradebook grade items, you get a notice and nothing else to do.
+
+### 2. Choose the activity type
+
+Pick a gradable **Activity type** (e.g. Quizzes, Assignments) and press **Refresh**. Only one type is scheduled at a time.
+
+### 3. Set the schedule
+
+| Field | Meaning |
+|-------|---------|
+| **Schedule start** | When the first session starts counting from. |
+| **Session length (days)** | Length of each session. |
+| **Activities per session** | How many of the *selected* activities go in each session. |
+| **Show student note** | Whether the student note is switched on for activities that you tick for the first time. Each row's own **Show student note** box is what counts once saved. |
+| **Also show notes on the course page** | Show each switched-on note next to its activity on the course page as well as on the activity page. |
+| **Reset unselected** (advanced) | Clear the gradebook lock date of every activity of this type that is not ticked. |
+
+Unlike the dates tab, which splits *all* the type's activities into sessions, the Grade locks tab splits only the **selected** activities, in course order, and each session's grade items lock at the **end** of its session. With a start of 1 March, 7-day sessions and 2 activities per session, the first two ticked activities lock on 8 March, the next two on 15 March, and so on.
+
+### 4. Select activities and notes
+
+Tick the activities to lock in the first column. The **Gradebook lock** column shows each activity's current lock date, read live from the gradebook. Tick **Show student note** in the last column for each activity whose students should see the note. The header checkboxes select or clear a whole column.
+
+### 5. Save
+
+The buttons work as on the dates tab: **Refresh** saves the settings and selection without changing any lock date; **Save and display** and **Save and return to course** also apply the lock dates; **Cancel** discards. After applying you get an "Updated the gradebook lock date for N activities." confirmation.
+
+### What Apply does on this tab
+
+- Sets the lock date (`locktime`) of every grade item of each selected activity to the end of its session. Moodle's own scheduled task (`\core\task\grade_cron_task`) then locks the items once that time has passed; nothing is locked at the moment you save.
+- Skips a selected activity that has no grade item (for example an ungraded activity of a gradable type); it is not counted.
+- With **Reset unselected** on, clears the lock date of every unselected activity of the type (an item that is already locked stays locked).
+- The plugin does not store lock dates itself: the gradebook's lock date is the only record, so a date changed in the gradebook's own settings shows up here too.
+
+### What students see
+
+With the note switched on for an activity, students see on the activity page:
+
+- before the lock date: **"Grades lock after {date}"**;
+- once locked: **"Grades were locked on {date}"**.
+
+If the activity has several grade items, the earliest date applies. On Moodle 5.2 and later the note sits in the activity header next to the activity's dates; on Moodle 5.0 and 5.1 it appears at the top of the page. With **Also show notes on the course page** on, a compact copy of the note also appears under each activity on the course page — only for activities the student can see listed there, and only in course formats that use Moodle's standard activity layout.
+
+### Using it alongside Timelocker
+
+This tab replaces the `tool_timelocker` plugin, but both can be installed on one site. Both write the same gradebook lock date, so for an activity scheduled in both, the last save wins, and both show the date actually in force. `tool_timelocker` 0.1.1 and later stays quiet on an activity where this plugin already shows a note, so students see one note. Nothing is migrated from Timelocker; its lock dates stay in the gradebook.
+
 ## Site-wide defaults
 
 **Site administration → Plugins → Admin tools → Activity dates** sets the defaults new courses start with:
@@ -102,6 +157,13 @@ Anything scheduled to open after the **Finish** date is skipped — both in the 
 - Activities per session (default **2**).
 - Stay available after session finish (default off).
 - Hide unselected (default off).
+
+A **Grade locks** heading on the same page holds the Grade locks tab's own defaults:
+
+- Session length (default **7**).
+- Activities per session (default **5**).
+- Show student note (default on).
+- Also show notes on the course page (default off).
 
 These only seed the form; each course then stores its own configuration.
 
@@ -115,12 +177,16 @@ The form rejects a save when:
 
 ## Privacy
 
-The tool stores only **course-level scheduling configuration** — the chosen activity type, session settings, and which course modules are selected. It stores **no personal user data** and implements Moodle's `null_provider`.
+The tool stores only **course-level scheduling configuration** — the chosen activity type, session settings, and which course modules are selected, for both dates and grade locks. It stores **no personal user data** and implements Moodle's `null_provider`.
 
 ## Data stored
 
 - `tool_activitydates` — one configuration row per course.
 - `tool_activitydates_cmids` — the selected course-module IDs for that configuration.
+- `tool_activitydates_lock` — one Grade locks configuration row per course.
+- `tool_activitydates_lockitem` — the selected course-module IDs for that configuration, each with its note switch.
+
+Deleting a course deletes its rows from all four tables.
 
 ## License
 

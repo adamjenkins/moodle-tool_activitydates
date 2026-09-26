@@ -2,6 +2,34 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- A **Grade locks** tab, next to Activity dates, that schedules gradebook lock
+  dates on a session basis: the selected activities of one gradable type are
+  grouped into sessions in course order, and each session's grade items get a
+  lock date at the end of its session. Ported from `tool_timelocker`, which it
+  replaces; both plugins can run on the same site.
+- The `tool/activitydates:managelocks` capability for the Grade locks tab
+  (editing teachers and managers by default, cloned from `moodle/grade:manage`).
+  The tab row shows only the tabs a user can open, and the course navigation
+  entry links to the first of them.
+- Optional student notes on the activity page ("Grades lock after {date}" /
+  "Grades were locked on {date}"), in the activity header on Moodle 5.2+ and at
+  the top of the page on 5.0/5.1, and optionally next to each activity on the
+  course page.
+- Site defaults for the Grade locks tab under a "Grade locks" heading.
+- `\tool_activitydates\locks\local\locknote::shows_note()`, a public contract
+  that `tool_timelocker` 0.1.1+ calls so that students see one note per
+  activity, not two.
+
+### Fixed
+
+- Deleting a course now deletes the plugin's rows for that course.
+- The upgrade removes rows left behind by courses deleted under earlier
+  versions.
+
 ## [1.0.0] - 2026-09-24
 
 First stable release.
