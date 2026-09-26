@@ -45,7 +45,7 @@ $PAGE->set_context($context);
 $PAGE->set_pagelayout('admin');
 $PAGE->set_title(get_string('tablocks', 'tool_activitydates'));
 $PAGE->set_heading($course->fullname);
-navigation_node::override_active_url(new moodle_url('/admin/tool/activitydates/view.php', ['courseid' => $courseid]));
+\tool_activitydates\local\tabs::highlight_navigation($courseid);
 
 $modules = modtypes::eligible_course_modtypes($courseid);
 

@@ -76,4 +76,19 @@ class tabs {
         $available = self::available($courseid);
         return $available ? reset($available)[0] : null;
     }
+
+    /**
+     * Mark the course-administration "Activity dates" entry as the active node.
+     *
+     * The entry points at first_url() (see lib.php), which is locks.php for a user
+     * who holds only managelocks, so match that rather than a fixed view.php.
+     *
+     * @param int $courseid The course ID.
+     */
+    public static function highlight_navigation(int $courseid): void {
+        $url = self::first_url($courseid);
+        if ($url) {
+            \navigation_node::override_active_url($url);
+        }
+    }
 }

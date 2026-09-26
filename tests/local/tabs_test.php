@@ -83,4 +83,49 @@ final class tabs_test extends \advanced_testcase {
             $this->assertStringEndsWith('/admin/tool/activitydates/' . $firstscript, $url->out_omit_querystring());
         }
     }
+
+    /**
+     * Users who can open the Grade locks page, and the page their navigation entry points at.
+     *
+     * @return array
+     */
+    public static function locks_user_provider(): array {
+        return [
+            'both' => [true, 'view.php'],
+            'locks only' => [false, 'locks.php'],
+        ];
+    }
+
+    /**
+     * On the Grade locks page, the course-administration "Activity dates" entry is the
+     * active navigation node, whichever page that entry points at for the user.
+     *
+     * @param bool $dates Whether the user also has tool/activitydates:manage.
+     * @param string $firstscript The page the entry points at.
+     */
+    #[DataProvider('locks_user_provider')]
+    public function test_highlight_navigation(bool $dates, string $firstscript): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $context = \context_course::instance($course->id);
+        $roleid = $this->getDataGenerator()->create_role();
+        assign_capability('tool/activitydates:manage', $dates ? CAP_ALLOW : CAP_PROHIBIT, $roleid, $context);
+        assign_capability('tool/activitydates:managelocks', CAP_ALLOW, $roleid, $context);
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, $roleid);
+        $this->setUser($user);
+
+        // Set the page up as locks.php does.
+        $PAGE->set_url(new \moodle_url('/admin/tool/activitydates/locks.php', ['courseid' => $course->id]));
+        $PAGE->set_course($course);
+        $PAGE->set_context($context);
+        $PAGE->set_pagelayout('admin');
+        tabs::highlight_navigation((int) $course->id);
+
+        $active = $PAGE->settingsnav->find_active_node();
+        $this->assertNotFalse($active, 'No active node in the settings navigation');
+        $this->assertSame(get_string('pluginname', 'tool_activitydates'), $active->text);
+        $this->assertStringEndsWith('/admin/tool/activitydates/' . $firstscript, $active->action->out_omit_querystring());
+    }
 }
