@@ -27,6 +27,13 @@ defined('MOODLE_INTERNAL') || die();
 if ($hassiteconfig) {
     $settings = new admin_settingpage('tool_activitydates_settings', new lang_string('pluginname', 'tool_activitydates'));
 
+    // Headings keep the two tabs' same-named defaults apart.
+    $settings->add(new admin_setting_heading(
+        'tool_activitydates/datesettings',
+        get_string('tabdates', 'tool_activitydates'),
+        ''
+    ));
+
     $settings->add(new admin_setting_configtext(
         'tool_activitydates/sessionlength',
         get_string('sessionlength', 'tool_activitydates'),
