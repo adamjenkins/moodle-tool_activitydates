@@ -22,6 +22,11 @@ namespace tool_activitydates\local;
  * Versions before 2.0.0 had no course-deletion observer, so a deleted course
  * left its configuration behind. The 2.0.0 upgrade calls this once.
  *
+ * That historic upgrade step (db/upgrade.php, 2026092600) runs this live code
+ * against the 2026092600 schema. Keep orphans() to those four tables and
+ * columns; if it must cover a table added later, give the upgrade step its
+ * own frozen copy of this query first.
+ *
  * @package    tool_activitydates
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

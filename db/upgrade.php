@@ -65,7 +65,8 @@ function xmldb_tool_activitydates_upgrade($oldversion) {
             $dbman->create_table($table);
         }
 
-        // Earlier versions had no course-deletion observer.
+        // Earlier versions had no course-deletion observer. This calls live code: see
+        // the warning in cleanup's class docblock before changing orphans().
         \tool_activitydates\local\cleanup::orphans();
 
         upgrade_plugin_savepoint(true, 2026092600, 'tool', 'activitydates');
