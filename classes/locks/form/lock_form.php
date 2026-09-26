@@ -33,9 +33,9 @@ require_once($CFG->libdir . '/formslib.php');
  * settings for the tool_activitydates course scheduling page.
  *
  * The activity selection table (select / show-note checkboxes) is rendered
- * separately, in view.php, outside this moodleform's own quickform elements.
+ * separately, in locks.php, outside this moodleform's own quickform elements.
  * Its checkboxes carry an HTML5 form="" attribute pointing at this form's id
- * (self::FORM_ID) so they still post as part of the same request; view.php
+ * (self::FORM_ID) so they still post as part of the same request; locks.php
  * reads them with optional_param_array() rather than via get_data().
  */
 class lock_form extends \moodleform {
@@ -72,7 +72,7 @@ class lock_form extends \moodleform {
         $mform->setExpanded('lockheader');
 
         // Module type selector plus a refresh button to re-display the form for
-        // the chosen type; the modform AMD module also auto-submits on change.
+        // the chosen type; the lockform AMD module also auto-submits on change.
         $group = [];
         $group[] = $mform->createElement('select', 'modtype', get_string('activitytype', 'tool_activitydates'), $modules);
         $group[] = $mform->createElement('submit', 'refresh', get_string('refresh', 'tool_activitydates'));

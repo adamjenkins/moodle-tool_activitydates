@@ -28,7 +28,7 @@
  *
  * @param navigation_node $navigation the navigation node to extend
  * @param stdClass $course the course to extend navigation for
- * @param context_course $context the context of the course
+ * @param context_course $context the context of the course (unused: tabs checks capabilities itself)
  * @return void
  */
 function tool_activitydates_extend_navigation_course(

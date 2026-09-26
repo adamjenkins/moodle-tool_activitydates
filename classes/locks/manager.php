@@ -216,19 +216,20 @@ class manager {
 
             $gradeitems = $this->fetch_mod_grade_items($courseid, $cm);
             $gradeitemids = [];
-            $futurelocktimes = [];
+            $locktimes = [];
             if ($gradeitems) {
                 foreach ($gradeitems as $gradeitem) {
                     $gradeitemids[] = (int) $gradeitem->id;
                     $itemlocktime = (int) $gradeitem->get_locktime();
                     if ($itemlocktime > 0) {
-                        $futurelocktimes[] = $itemlocktime;
+                        $locktimes[] = $itemlocktime;
                     }
                 }
             }
-            // Use the earliest future locktime, matching the student-facing note's rule; 0 (none) if
-            // all of the cm's grade items are unlocked.
-            $locktime = $futurelocktimes ? min($futurelocktimes) : 0;
+            // Use the earliest scheduled locktime, matching how the student-facing note picks its
+            // date; 0 (none) if no grade item has one. Core keeps locktime after cron locks an item,
+            // so this can be a past date.
+            $locktime = $locktimes ? min($locktimes) : 0;
 
             $selected = array_key_exists($cm->id, $existingitems);
             $shownote = $selected

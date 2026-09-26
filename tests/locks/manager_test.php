@@ -181,7 +181,7 @@ final class manager_test extends \advanced_testcase {
      * get_table_data() must return one row per gradable activity of the
      * settings' modtype, in course order, with the exact expected keys and
      * correct selection state. The locktime field must reflect the earliest
-     * future locktime from the activity's grade items.
+     * scheduled locktime from the activity's grade items.
      */
     public function test_get_table_data(): void {
         global $CFG;
