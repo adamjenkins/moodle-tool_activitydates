@@ -95,7 +95,7 @@ final class locknote_test extends \advanced_testcase {
     public function test_lock_state(): void {
         global $DB;
         $this->resetAfterTest();
-        [$course, $cms] = $this->create_fixture();
+        [, $cms] = $this->create_fixture();
 
         $this->assertNull(locknote::lock_state($this->grade_items($cms[0])));
 
@@ -255,14 +255,21 @@ final class locknote_test extends \advanced_testcase {
         $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cms[0]->id, 'shownote' => 1]);
         $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cms[1]->id, 'shownote' => 0]);
 
-        // Activity page: only the note switched on.
-        $this->assertTrue(locknote::shows_note((int) $cms[0]->id, false));
-        $this->assertFalse(locknote::shows_note((int) $cms[1]->id, false));
-        $this->assertFalse(locknote::shows_note((int) $cms[2]->id, false));
-        // Course page: needs the course option too.
-        $this->assertFalse(locknote::shows_note((int) $cms[0]->id, true));
-        $DB->set_field('tool_activitydates_lock', 'shownotecoursepage', 1, ['id' => $lockid]);
-        $this->assertTrue(locknote::shows_note((int) $cms[0]->id, true));
-        $this->assertFalse(locknote::shows_note((int) $cms[1]->id, true));
+        // Every placement x note row x course option: $cms[0] has its note on,
+        // $cms[1] has it off, $cms[2] has no row. Only the note switched on shows,
+        // and on the course page only when the course option is on as well.
+        foreach ([0, 1] as $coursepageoption) {
+            $DB->set_field('tool_activitydates_lock', 'shownotecoursepage', $coursepageoption, ['id' => $lockid]);
+            foreach ([false, true] as $coursepage) {
+                $where = ($coursepage ? 'course' : 'activity') . " page, course option $coursepageoption";
+                $this->assertSame(
+                    !$coursepage || $coursepageoption === 1,
+                    locknote::shows_note((int) $cms[0]->id, $coursepage),
+                    "note on, $where"
+                );
+                $this->assertFalse(locknote::shows_note((int) $cms[1]->id, $coursepage), "note off, $where");
+                $this->assertFalse(locknote::shows_note((int) $cms[2]->id, $coursepage), "no row, $where");
+            }
+        }
     }
 }

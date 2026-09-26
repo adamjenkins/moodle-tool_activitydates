@@ -56,7 +56,7 @@ final class tabs_test extends \advanced_testcase {
      */
     #[DataProvider('capability_provider')]
     public function test_render_and_first_url(bool $dates, bool $locks, bool $hastabs, ?string $firstscript): void {
-        global $DB, $PAGE;
+        global $PAGE;
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course();
         $context = \context_course::instance($course->id);
@@ -81,6 +81,32 @@ final class tabs_test extends \advanced_testcase {
             $this->assertNull($url);
         } else {
             $this->assertStringEndsWith('/admin/tool/activitydates/' . $firstscript, $url->out_omit_querystring());
+        }
+    }
+
+    /**
+     * The tab row marks the current page's tab, and only that one, as active.
+     */
+    public function test_render_marks_current_tab(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $this->setUser($user);
+        $PAGE->set_context(\context_course::instance($course->id));
+
+        $labels = ['dates' => 'Activity dates', 'locks' => 'Grade locks'];
+        foreach ($labels as $current => $label) {
+            $html = tabs::render((int) $course->id, $current);
+            foreach ($labels as $id => $otherlabel) {
+                $pattern = '~class="nav-link active"[^>]*>' . preg_quote($otherlabel, '~') . '</a>~';
+                if ($id === $current) {
+                    $this->assertMatchesRegularExpression($pattern, $html);
+                } else {
+                    $this->assertDoesNotMatchRegularExpression($pattern, $html);
+                    $this->assertStringContainsString('>' . $otherlabel . '</a>', $html);
+                }
+            }
         }
     }
 
