@@ -52,6 +52,7 @@ $modules = modtypes::eligible_course_modtypes($courseid);
 if (empty($modules)) {
     echo $OUTPUT->header();
     echo $OUTPUT->heading(get_string('tablocks', 'tool_activitydates'));
+    echo \tool_activitydates\local\tabs::render($courseid, 'locks');
     echo $OUTPUT->notification(
         get_string('nogradableactivities', 'tool_activitydates'),
         \core\output\notification::NOTIFY_INFO
@@ -154,6 +155,7 @@ $mform->set_data($settings);
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('tablocks', 'tool_activitydates'));
+echo \tool_activitydates\local\tabs::render($courseid, 'locks');
 $mform->display();
 echo $OUTPUT->render_from_template('tool_activitydates/lockmodtable', [
     'formid' => lock_form::FORM_ID,
