@@ -16,6 +16,10 @@
 
 namespace tool_activitydates\locks;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use tool_activitydates\local\course_order;
+use tool_activitydates\observer;
+
 /**
  * Unit tests for the tool_activitydates plugin.
  *
@@ -23,12 +27,14 @@ namespace tool_activitydates\locks;
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[CoversClass(manager::class)]
+#[CoversClass(modtypes::class)]
+#[CoversClass(course_order::class)]
+#[CoversClass(observer::class)]
 final class manager_test extends \advanced_testcase {
     /**
      * eligible_course_modtypes() should include module types that have a
      * grade item in the course, and exclude those that do not.
-     *
-     * @covers \tool_activitydates\locks\modtypes::eligible_course_modtypes
      */
     public function test_eligible_gradable_modtypes(): void {
         $this->resetAfterTest();
@@ -43,8 +49,6 @@ final class manager_test extends \advanced_testcase {
     /**
      * compute_lockdates() must stagger lock dates by session, grouping
      * activities into sessions of $perssession, in the order given.
-     *
-     * @covers \tool_activitydates\locks\manager::compute_lockdates
      */
     public function test_compute_lockdates_staggers_by_session(): void {
         $start = 1000000; // Arbitrary base.
@@ -63,8 +67,6 @@ final class manager_test extends \advanced_testcase {
     /**
      * apply_locks() must write the computed lock timestamp to every
      * itemtype='mod' grade item of each selected course module.
-     *
-     * @covers \tool_activitydates\locks\manager::apply_locks
      */
     public function test_apply_locks_writes_grade_item_locktime(): void {
         global $CFG;
@@ -92,8 +94,6 @@ final class manager_test extends \advanced_testcase {
     /**
      * apply_locks() with $resetunselected must clear the locktime on
      * activities of the modtype that are not present in $lockdates.
-     *
-     * @covers \tool_activitydates\locks\manager::apply_locks
      */
     public function test_apply_locks_resets_unselected(): void {
         global $CFG;
@@ -134,8 +134,6 @@ final class manager_test extends \advanced_testcase {
     /**
      * update() must upsert the course's tool_activitydates_lock row and rebuild the
      * tool_activitydates_lockitem rows, including each item's own shownote value.
-     *
-     * @covers \tool_activitydates\locks\manager::update
      */
     public function test_update_persists_config_and_items(): void {
         global $DB;
@@ -184,8 +182,6 @@ final class manager_test extends \advanced_testcase {
      * settings' modtype, in course order, with the exact expected keys and
      * correct selection state. The locktime field must reflect the earliest
      * future locktime from the activity's grade items.
-     *
-     * @covers \tool_activitydates\locks\manager::get_table_data
      */
     public function test_get_table_data(): void {
         global $CFG;
@@ -244,8 +240,6 @@ final class manager_test extends \advanced_testcase {
      * (section + position), not creation/instance-id order. This matters
      * because the returned row order also drives compute_lockdates()'s
      * session assignment.
-     *
-     * @covers \tool_activitydates\locks\manager::get_table_data
      */
     public function test_get_table_data_course_order(): void {
         global $CFG;
@@ -288,9 +282,6 @@ final class manager_test extends \advanced_testcase {
      * on the course page, not after every other section. A subsection's
      * content lives in a delegated section numbered after all listed
      * sections, so walking sections by number puts it at the very end.
-     *
-     * @covers \tool_activitydates\locks\manager::get_table_data
-     * @covers \tool_activitydates\local\course_order
      */
     public function test_get_table_data_subsection_order(): void {
         global $CFG;
@@ -326,8 +317,6 @@ final class manager_test extends \advanced_testcase {
     /**
      * Deleting a course must clean up its tool_activitydates_lock configuration row
      * and all associated tool_activitydates_lockitem rows, leaving no orphans.
-     *
-     * @covers \tool_activitydates\observer::course_deleted
      */
     public function test_course_deleted_cleans_plugin_rows(): void {
         global $DB;
@@ -361,8 +350,6 @@ final class manager_test extends \advanced_testcase {
     /**
      * The locks_updated event must construct and trigger correctly with a
      * course context, matching \tool_activitydates\event\locks_updated.
-     *
-     * @covers \tool_activitydates\event\locks_updated
      */
     public function test_locks_updated_event(): void {
         $this->resetAfterTest();
@@ -382,8 +369,6 @@ final class manager_test extends \advanced_testcase {
 
     /**
      * update() must drop cmids from another course or another activity type.
-     *
-     * @covers \tool_activitydates\locks\manager::update
      */
     public function test_update_drops_foreign_cmids(): void {
         global $DB;
@@ -413,8 +398,6 @@ final class manager_test extends \advanced_testcase {
 
     /**
      * apply_locks() must skip a selected activity that has no grade item.
-     *
-     * @covers \tool_activitydates\locks\manager::apply_locks
      */
     public function test_apply_locks_skips_activity_without_grade_item(): void {
         global $CFG;
