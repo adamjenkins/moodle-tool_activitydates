@@ -59,5 +59,43 @@ if ($hassiteconfig) {
         0
     ));
 
+    $settings->add(new admin_setting_heading(
+        'tool_activitydates/locksettings',
+        get_string('locksettings', 'tool_activitydates'),
+        get_string('locksettings_desc', 'tool_activitydates')
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_activitydates/locksessionlength',
+        get_string('locksessionlength', 'tool_activitydates'),
+        get_string('locksessionlength_desc', 'tool_activitydates'),
+        '7',
+        PARAM_INT,
+        3
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_activitydates/lockactivitiespersession',
+        get_string('lockactivitiespersession', 'tool_activitydates'),
+        get_string('lockactivitiespersession_desc', 'tool_activitydates'),
+        '5',
+        PARAM_INT,
+        3
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_activitydates/lockshownote',
+        get_string('shownote', 'tool_activitydates'),
+        get_string('shownote_desc', 'tool_activitydates'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_activitydates/lockshownotecoursepage',
+        get_string('shownotecoursepage', 'tool_activitydates'),
+        get_string('shownotecoursepage_desc', 'tool_activitydates'),
+        0
+    ));
+
     $ADMIN->add('tools', $settings);
 }

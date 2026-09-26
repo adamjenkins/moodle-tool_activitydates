@@ -35,4 +35,14 @@ $capabilities = [
         ],
         'clonepermissionsfrom' => 'moodle/course:manageactivities',
     ],
+    'tool/activitydates:managelocks' => [
+        'riskbitmask' => RISK_DATALOSS, // Bulk-locks gradebook grade items.
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_COURSE,
+        'archetypes' => [
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW,
+        ],
+        'clonepermissionsfrom' => 'moodle/grade:manage',
+    ],
 ];
