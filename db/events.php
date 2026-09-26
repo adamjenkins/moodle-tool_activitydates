@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Plugin version metadata for tool_activitydates.
+ * Event observer registrations for tool_activitydates.
  *
  * @package    tool_activitydates
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -24,9 +24,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'tool_activitydates';
-$plugin->version   = 2026092600;
-$plugin->requires  = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 502];
-$plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.0.0';
+$observers = [
+    [
+        'eventname' => \core\event\course_deleted::class,
+        'callback' => '\tool_activitydates\observer::course_deleted',
+    ],
+];
