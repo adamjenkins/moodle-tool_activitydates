@@ -1,0 +1,58 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template tool_activitydates/coursenotes
+
+    Hidden container of compact grade-lock notes for the course page. The
+    tool_activitydates/coursenotes AMD module moves each note into the card of
+    the activity named by its data-cmid; a note whose activity is not on the
+    page stays in the hidden container.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * data-region="tool_activitydates-coursenotes" - the hidden container
+    * data-cmid - the course module id each note belongs to
+
+    Context variables required for this template:
+    * notes array - one entry per note
+      * cmid int - the course module id
+      * islocked bool - whether the grade item is already locked
+      * date string - the (already formatted) lock date to display
+
+    Example context (json):
+    {
+        "notes": [
+            { "cmid": 12, "islocked": false, "date": "Monday, 1 January 2026, 12:00 AM" },
+            { "cmid": 15, "islocked": true, "date": "Friday, 1 August 2025, 9:00 AM" }
+        ]
+    }
+}}
+<div data-region="tool_activitydates-coursenotes" hidden>
+    {{#notes}}
+        <div class="tool_activitydates-coursenote small text-muted mt-1" data-cmid="{{cmid}}">
+            {{#pix}} i/lock, core {{/pix}}
+            {{#islocked}}
+                {{#str}} gradelockednote, tool_activitydates, {{date}} {{/str}}
+            {{/islocked}}
+            {{^islocked}}
+                {{#str}} gradelocknote, tool_activitydates, {{date}} {{/str}}
+            {{/islocked}}
+        </div>
+    {{/notes}}
+</div>

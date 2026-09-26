@@ -1,0 +1,116 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template tool_activitydates/lockmodtable
+
+    Table of a course's activities of one module type, in course order, with
+    their current gradebook lock date and their selection/note state.
+
+    The select and show-note checkboxes are rendered here, outside the page's
+    moodleform, but carry a form="" attribute pointing at that form's id so
+    they still submit together with it (see classes/locks/form/lock_form.php).
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * formid string - the id of the moodleform these checkboxes submit with
+    * modname string - the module type name (e.g. quiz), used in the activity links
+    * tabledata array - list of activity rows, in course order
+      * cmid int - the course module id
+      * name string - the activity name
+      * selected bool - whether the activity is currently selected
+      * shownote bool - whether the student-facing lock note is enabled for this activity
+      * haslocktime bool - whether a pending gradebook lock date exists
+      * lockdateattr string - the pending lock date for the time element's datetime attribute
+      * lockmessage string - localised "Locks {date}" message, present when haslocktime is true
+
+    Example context (json):
+    {
+        "formid": "tool_activitydates_lock_form",
+        "modname": "quiz",
+        "tabledata": [
+            {
+                "cmid": 56,
+                "name": "Quiz 1",
+                "selected": true,
+                "shownote": false,
+                "haslocktime": true,
+                "lockdateattr": "2026-08-05T10:00",
+                "lockmessage": "Locks Wed 05 Aug 2026, 10:00"
+            }
+        ]
+    }
+}}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th scope="col">
+                        <input type="checkbox" id="id_selectall"
+                            aria-label="{{#str}}toggleselection, tool_activitydates{{/str}}"
+                            title="{{#str}}toggleselection, tool_activitydates{{/str}}">
+                    </th>
+                    <th scope="col">{{#str}}name{{/str}}</th>
+                    <th scope="col">{{#str}}locktimecolumn, tool_activitydates{{/str}}</th>
+                    <th scope="col">
+                        <input type="checkbox" id="id_togglenotes"
+                            aria-label="{{#str}}togglenotes, tool_activitydates{{/str}}"
+                            title="{{#str}}togglenotes, tool_activitydates{{/str}}">
+                        {{#str}}shownote, tool_activitydates{{/str}}
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {{^tabledata}}
+                    <tr>
+                        <td colspan="4">{{#str}}nogradableactivities, tool_activitydates{{/str}}</td>
+                    </tr>
+                {{/tabledata}}
+                {{#tabledata}}
+                    <tr>
+                        <td>
+                            <input type="checkbox" name="cmids[]" value="{{cmid}}" form="{{formid}}"
+                                id="id_cmid_{{cmid}}"
+                                aria-label="{{#str}}selectactivity, tool_activitydates, {{name}}{{/str}}"
+                                {{#selected}}checked{{/selected}}>
+                        </td>
+                        <td><a href="{{config.wwwroot}}/mod/{{modname}}/view.php?id={{cmid}}">{{name}}</a></td>
+                        <td>
+                            {{#haslocktime}}
+                                <time datetime="{{lockdateattr}}">{{lockmessage}}</time>
+                            {{/haslocktime}}
+                            {{^haslocktime}}
+                                {{#str}}nolockscheduled, tool_activitydates{{/str}}
+                            {{/haslocktime}}
+                        </td>
+                        <td>
+                            <input type="checkbox" name="shownote_cmids[]" value="{{cmid}}" form="{{formid}}"
+                                id="id_shownote_{{cmid}}"
+                                aria-label="{{#str}}shownoteforactivity, tool_activitydates, {{name}}{{/str}}"
+                                {{#shownote}}checked{{/shownote}}>
+                        </td>
+                    </tr>
+                {{/tabledata}}
+            </tbody>
+        </table>
+    </div>
+</div>
