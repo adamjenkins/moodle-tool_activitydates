@@ -39,6 +39,8 @@ require_once($CFG->libdir . '/formslib.php');
  * reads them with optional_param_array() rather than via get_data().
  */
 class lock_form extends \moodleform {
+    use \tool_activitydates\local\action_buttons;
+
     /** @var string the HTML id assigned to this form, so checkboxes rendered
      *  outside it can still submit as part of it via a form="" attribute. */
     const FORM_ID = 'tool_activitydates_lock_form';
@@ -134,35 +136,6 @@ class lock_form extends \moodleform {
         $mform->setAdvanced('resetunselected');
 
         $this->add_action_buttons();
-    }
-
-    /**
-     * Add "Save and return to course", "Save and display" and "Cancel"
-     * buttons, mirroring the standard activity module forms.
-     *
-     * @param bool $cancel whether to show a cancel button.
-     * @param string|null $submitlabel label for the save-and-display button.
-     * @param string|null $submit2label label for the save-and-return button.
-     */
-    public function add_action_buttons($cancel = true, $submitlabel = null, $submit2label = null) {
-        if (is_null($submitlabel)) {
-            $submitlabel = get_string('savechangesanddisplay');
-        }
-        if (is_null($submit2label)) {
-            $submit2label = get_string('savechangesandreturntocourse');
-        }
-        $mform = $this->_form;
-
-        $buttonarray = [];
-        $buttonarray[] = $mform->createElement('submit', 'submitbutton2', $submit2label);
-        if ($submitlabel !== false) {
-            $buttonarray[] = $mform->createElement('submit', 'submitbutton', $submitlabel);
-        }
-        if ($cancel) {
-            $buttonarray[] = $mform->createElement('cancel');
-        }
-        $mform->addGroup($buttonarray, 'buttonar', '', [' '], false);
-        $mform->setType('buttonar', PARAM_RAW);
     }
 
     /**

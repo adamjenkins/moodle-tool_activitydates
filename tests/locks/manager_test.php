@@ -33,6 +33,39 @@ use tool_activitydates\observer;
 #[CoversClass(observer::class)]
 final class manager_test extends \advanced_testcase {
     /**
+     * Create a course with two graded quizzes.
+     *
+     * @return array [course, quiz 1, quiz 2, cmid 1, cmid 2]
+     */
+    private function create_two_quizzes(): array {
+        $course = $this->getDataGenerator()->create_course();
+        $q1 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
+        $q2 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
+        $cm1 = get_coursemodule_from_instance('quiz', $q1->id)->id;
+        $cm2 = get_coursemodule_from_instance('quiz', $q2->id)->id;
+        return [$course, $q1, $q2, $cm1, $cm2];
+    }
+
+    /**
+     * Grade locks form data for quizzes: one per session, weekly from 2000000000.
+     *
+     * @param array $cmids Course module IDs to select.
+     * @param array $notecmids Course module IDs whose note is switched on.
+     * @return \stdClass
+     */
+    private function lock_formdata(array $cmids, array $notecmids): \stdClass {
+        return (object) [
+            'modtype' => 'quiz',
+            'schedulestart' => 2000000000,
+            'sessionlength' => 7,
+            'activitiespersession' => 1,
+            'shownote' => 1,
+            'resetunselected' => 0,
+            'cmids' => $cmids,
+            'shownote_cmids' => $notecmids,
+        ];
+    }
+    /**
      * eligible_course_modtypes() should include module types that have a
      * grade item in the course, and exclude those that do not.
      */
@@ -138,23 +171,11 @@ final class manager_test extends \advanced_testcase {
     public function test_update_persists_config_and_items(): void {
         global $DB;
         $this->resetAfterTest();
-        $course = $this->getDataGenerator()->create_course();
-        $q1 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
-        $q2 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
-        $cm1 = get_coursemodule_from_instance('quiz', $q1->id)->id;
-        $cm2 = get_coursemodule_from_instance('quiz', $q2->id)->id;
+        [$course, , , $cm1, $cm2] = $this->create_two_quizzes();
 
         $mgr = new \tool_activitydates\locks\manager();
-        $formdata = new \stdClass();
-        $formdata->modtype = 'quiz';
-        $formdata->schedulestart = 2000000000;
-        $formdata->sessionlength = 7;
-        $formdata->activitiespersession = 1;
-        $formdata->shownote = 1;
+        $formdata = $this->lock_formdata([$cm1, $cm2], [$cm1]);
         $formdata->shownotecoursepage = 1;
-        $formdata->resetunselected = 0;
-        $formdata->cmids = [$cm1, $cm2];
-        $formdata->shownote_cmids = [$cm1];
 
         $settings = $mgr->update($formdata, $course->id);
 
@@ -187,23 +208,10 @@ final class manager_test extends \advanced_testcase {
         global $CFG;
         require_once($CFG->libdir . '/gradelib.php');
         $this->resetAfterTest();
-        $course = $this->getDataGenerator()->create_course();
-        $q1 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
-        $q2 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
-        $cm1 = get_coursemodule_from_instance('quiz', $q1->id)->id;
-        $cm2 = get_coursemodule_from_instance('quiz', $q2->id)->id;
+        [$course, , , $cm1, $cm2] = $this->create_two_quizzes();
 
         $mgr = new \tool_activitydates\locks\manager();
-        $formdata = new \stdClass();
-        $formdata->modtype = 'quiz';
-        $formdata->schedulestart = 2000000000;
-        $formdata->sessionlength = 7;
-        $formdata->activitiespersession = 1;
-        $formdata->shownote = 1;
-        $formdata->resetunselected = 0;
-        $formdata->cmids = [$cm1];
-        $formdata->shownote_cmids = [$cm1];
-        $settings = $mgr->update($formdata, $course->id);
+        $settings = $mgr->update($this->lock_formdata([$cm1], [$cm1]), $course->id);
 
         // Apply locks to exercise the aggregation logic: cm1 gets a future locktime,
         // cm2 remains unlocked.
@@ -229,7 +237,7 @@ final class manager_test extends \advanced_testcase {
         $this->assertFalse($rows[1]['selected']);
         $this->assertNotEmpty($rows[0]['gradeitemids']);
         $this->assertIsInt($rows[0]['locktime']);
-        // Verify the earliest-future-locktime aggregation: cm1 should have the applied locktime.
+        // Verify the earliest-locktime aggregation: cm1 should have the applied locktime.
         $this->assertSame($expectedlocktime, $rows[0]['locktime']);
         // CM2 should be unlocked (0).
         $this->assertSame(0, $rows[1]['locktime']);

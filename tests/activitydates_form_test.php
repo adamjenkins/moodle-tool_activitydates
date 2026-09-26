@@ -51,5 +51,9 @@ final class activitydates_form_test extends \advanced_testcase {
         $this->assertStringNotContainsString('<img src=x onerror', $html);
         // The header shows the shortname through format_string(), which strips the markup.
         $this->assertStringContainsString('Activity dates for SN</legend>', $html);
+        // The shared button row (tool_activitydates\local\action_buttons).
+        foreach (['submitbutton2', 'submitbutton', 'cancel'] as $button) {
+            $this->assertStringContainsString('name="' . $button . '"', $html);
+        }
     }
 }

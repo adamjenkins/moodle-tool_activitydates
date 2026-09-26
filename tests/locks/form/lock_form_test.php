@@ -49,5 +49,9 @@ final class lock_form_test extends \advanced_testcase {
 
         $this->assertStringNotContainsString('<img src=x onerror', $html);
         $this->assertStringContainsString('Grade locks for SN</legend>', $html);
+        // The shared button row (tool_activitydates\local\action_buttons).
+        foreach (['submitbutton2', 'submitbutton', 'cancel'] as $button) {
+            $this->assertStringContainsString('name="' . $button . '"', $html);
+        }
     }
 }
