@@ -17,6 +17,7 @@
 namespace tool_activitydates\locks;
 
 use core\hook\output\before_footer_html_generation;
+use core\hook\output\before_standard_top_of_body_html_generation;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -91,5 +92,31 @@ final class hook_callbacks_test extends \advanced_testcase {
         } else {
             $this->assertSame('', $hook->get_output());
         }
+    }
+
+    /**
+     * Without header extras (Moodle 5.0/5.1) the note goes into the hook's output.
+     */
+    public function test_place_activity_note_fallback(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        $hook = new before_standard_top_of_body_html_generation($PAGE->get_renderer('core'));
+        hook_callbacks::place_activity_note($hook, '<div class="probe">note</div>', false);
+        $this->assertSame('<div class="probe">note</div>', $hook->get_output());
+    }
+
+    /**
+     * With header extras (Moodle 5.2+) the note goes into the page header, not the hook.
+     */
+    public function test_place_activity_note_header_extras(): void {
+        global $PAGE;
+        if (!method_exists($PAGE, 'add_header_extras')) {
+            $this->markTestSkipped('moodle_page::add_header_extras() needs Moodle 5.2+.');
+        }
+        $this->resetAfterTest();
+        $hook = new before_standard_top_of_body_html_generation($PAGE->get_renderer('core'));
+        hook_callbacks::place_activity_note($hook, '<div class="probe">note</div>', true);
+        $this->assertSame('', $hook->get_output());
+        $this->assertContains('<div class="probe">note</div>', $PAGE->get_header_extras());
     }
 }

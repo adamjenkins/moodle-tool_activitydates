@@ -150,4 +150,26 @@ class locknote {
         }
         return $notes;
     }
+
+    /**
+     * Whether this plugin shows a lock note for an activity.
+     *
+     * Public contract: tool_timelocker 0.1.1 calls this to stay quiet where
+     * activitydates already shows a note, so students see one note, not two.
+     *
+     * @param int $cmid The course module ID.
+     * @param bool $coursepage True for the course page, false for the activity page.
+     * @return bool
+     */
+    public static function shows_note(int $cmid, bool $coursepage): bool {
+        global $DB;
+        $sql = "SELECT 1
+                  FROM {tool_activitydates_lockitem} i
+                  JOIN {tool_activitydates_lock} l ON l.id = i.lockid
+                 WHERE i.cmid = :cmid AND i.shownote = 1";
+        if ($coursepage) {
+            $sql .= " AND l.shownotecoursepage = 1";
+        }
+        return $DB->record_exists_sql($sql, ['cmid' => $cmid]);
+    }
 }

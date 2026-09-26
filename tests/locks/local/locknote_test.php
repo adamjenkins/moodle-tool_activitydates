@@ -206,4 +206,28 @@ final class locknote_test extends \advanced_testcase {
 
         $this->assertSame([], locknote::course_page_notes($other->id));
     }
+
+    /**
+     * shows_note() answers for the activity page and the course page.
+     */
+    public function test_shows_note(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$course, $cms] = $this->create_fixture();
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
+            'courseid' => $course->id, 'modtype' => 'quiz', 'shownotecoursepage' => 0,
+        ]);
+        $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cms[0]->id, 'shownote' => 1]);
+        $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cms[1]->id, 'shownote' => 0]);
+
+        // Activity page: only the note switched on.
+        $this->assertTrue(locknote::shows_note((int) $cms[0]->id, false));
+        $this->assertFalse(locknote::shows_note((int) $cms[1]->id, false));
+        $this->assertFalse(locknote::shows_note((int) $cms[2]->id, false));
+        // Course page: needs the course option too.
+        $this->assertFalse(locknote::shows_note((int) $cms[0]->id, true));
+        $DB->set_field('tool_activitydates_lock', 'shownotecoursepage', 1, ['id' => $lockid]);
+        $this->assertTrue(locknote::shows_note((int) $cms[0]->id, true));
+        $this->assertFalse(locknote::shows_note((int) $cms[1]->id, true));
+    }
 }

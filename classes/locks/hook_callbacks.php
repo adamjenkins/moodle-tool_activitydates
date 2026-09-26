@@ -71,7 +71,26 @@ class hook_callbacks {
         // in the header-extras region next to the activity's dates. On 5.0/5.1
         // fall back to the hook's own output, which renders the same note at the
         // top of the body instead.
-        if (method_exists($PAGE, 'add_header_extras')) {
+        self::place_activity_note($hook, $html, method_exists($PAGE, 'add_header_extras'));
+    }
+
+    /**
+     * Put the activity-page note in the header extras (Moodle 5.2+) or, failing
+     * that, in the hook's own top-of-body output (Moodle 5.0/5.1).
+     *
+     * Split out so both branches can be tested on any Moodle version.
+     *
+     * @param \core\hook\output\before_standard_top_of_body_html_generation $hook The hook.
+     * @param string $html The rendered note.
+     * @param bool $useheaderextras Whether moodle_page::add_header_extras() is available.
+     */
+    public static function place_activity_note(
+        \core\hook\output\before_standard_top_of_body_html_generation $hook,
+        string $html,
+        bool $useheaderextras
+    ): void {
+        global $PAGE;
+        if ($useheaderextras) {
             $PAGE->add_header_extras($html);
         } else {
             $hook->add_html($html);
