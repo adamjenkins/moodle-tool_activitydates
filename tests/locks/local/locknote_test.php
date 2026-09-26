@@ -118,12 +118,47 @@ final class locknote_test extends \advanced_testcase {
      */
     public function test_for_cm(): void {
         $this->resetAfterTest();
-        [$course, $cms] = $this->create_fixture();
+        [$course, $cms, $student] = $this->create_fixture();
         $this->configure($course->id, [$cms[0]->id, $cms[1]->id], [$cms[0]->id], 0);
 
-        $this->assertSame(['islocked' => false, 'time' => self::LOCKTIME], locknote::for_cm($cms[0]));
-        $this->assertNull(locknote::for_cm($cms[1]));
-        $this->assertNull(locknote::for_cm($cms[2]));
+        // As the student, who can open all three quizzes.
+        $this->setUser($student);
+        $modinfo = get_fast_modinfo($course->id);
+        $this->assertSame(['islocked' => false, 'time' => self::LOCKTIME], locknote::for_cm($modinfo->get_cm($cms[0]->id)));
+        $this->assertNull(locknote::for_cm($modinfo->get_cm($cms[1]->id)));
+        $this->assertNull(locknote::for_cm($modinfo->get_cm($cms[2]->id)));
+    }
+
+    /**
+     * for_cm() shows nothing for an activity the current user cannot open, such as
+     * one whose access restriction is not yet met: core's restricted-activity page
+     * sets that activity as the page's cm, and the course page shows it no note either.
+     */
+    public function test_for_cm_restricted_activity(): void {
+        global $CFG;
+        $this->resetAfterTest();
+        $CFG->enableavailability = 1;
+        [$course, $cms, $student] = $this->create_fixture();
+        $availability = json_encode(\core_availability\tree::get_root_json(
+            [\availability_date\condition::get_json('>=', time() + 30 * DAYSECS)],
+            \core_availability\tree::OP_AND,
+            true
+        ));
+        $restricted = $this->getDataGenerator()->create_module(
+            'quiz',
+            ['course' => $course->id, 'grade' => 100, 'availability' => $availability]
+        );
+        $this->configure($course->id, [$cms[0]->id, $restricted->cmid], [$cms[0]->id, $restricted->cmid], 1);
+
+        $this->setUser($student);
+        $modinfo = get_fast_modinfo($course->id);
+        $restrictedcm = $modinfo->get_cm($restricted->cmid);
+        $this->assertFalse($restrictedcm->uservisible);
+        $this->assertTrue($restrictedcm->is_visible_on_course_page());
+
+        $this->assertNull(locknote::for_cm($restrictedcm));
+        $this->assertSame(['islocked' => false, 'time' => self::LOCKTIME], locknote::for_cm($modinfo->get_cm($cms[0]->id)));
+        $this->assertArrayNotHasKey($restricted->cmid, locknote::course_page_notes($course->id));
     }
 
     /**

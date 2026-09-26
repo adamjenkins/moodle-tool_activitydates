@@ -58,11 +58,19 @@ class locknote {
     /**
      * The note state for an activity page, if the activity's note is switched on.
      *
-     * @param cm_info $cm The activity.
+     * Nothing for an activity the current user cannot open: core's restricted-activity
+     * page sets such an activity as the page's cm, and the course page shows it no
+     * note either (see course_page_notes()).
+     *
+     * @param cm_info $cm The activity, from the current user's modinfo.
      * @return array|null Note state, or null if there is no note to show.
      */
     public static function for_cm(cm_info $cm): ?array {
         global $CFG, $DB;
+
+        if (!$cm->uservisible || $cm->deletioninprogress) {
+            return null;
+        }
 
         // Course-scoped lookup: the item must belong to a tool_activitydates
         // configuration row for THIS course, so a note row can never affect
