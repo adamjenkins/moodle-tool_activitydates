@@ -123,3 +123,15 @@ Feature: Bulk-schedule gradebook lock dates
     And I should not see "Grades lock after"
     And I am on the "Quiz1" "quiz activity" page
     And I should see "Grades lock after"
+
+  @javascript
+  Scenario: Changing the activity type refreshes the Grade locks table without pressing Refresh
+    Given the following "activities" exist:
+      | activity | name    | course | idnumber |
+      | assign   | Assign1 | C1     | assign1  |
+    And I log in as "teacher1"
+    And I am on the "C1" "tool_activitydates > locks" page
+    And I should see "Assign1" in the "table" "css_element"
+    When I set the field "modtype" to "Quiz"
+    Then I should see "Quiz1" in the "table" "css_element"
+    And I should not see "Assign1" in the "table" "css_element"

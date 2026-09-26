@@ -44,9 +44,10 @@ export const init = () => {
 
     // Re-submit the form when the activity type changes, so the table and
     // schedule fields refresh for the newly chosen type. The "Refresh" submit
-    // button is the no-JS fallback this mirrors.
-    const modtypeSelect = document.getElementById('id_modtypegroup_modtype');
-    const refreshButton = document.getElementById('id_modtypegroup_refresh');
+    // button is the no-JS fallback this mirrors. The form adds the group with
+    // appendName off, so the elements keep their own ids (id_modtype, id_refresh).
+    const modtypeSelect = document.getElementById('id_modtype');
+    const refreshButton = document.getElementById('id_refresh');
     if (modtypeSelect && refreshButton) {
         modtypeSelect.addEventListener('change', () => {
             refreshButton.click();
