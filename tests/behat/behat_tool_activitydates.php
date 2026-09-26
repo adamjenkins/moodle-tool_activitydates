@@ -33,6 +33,27 @@ use Behat\Mink\Exception\ExpectationException;
  * Behat steps for tool_activitydates.
  */
 class behat_tool_activitydates extends behat_base {
+    /** @var array page type => [script, capability that opens it] */
+    private const PAGES = [
+        'dates' => ['view.php', 'tool/activitydates:manage'],
+        'locks' => ['locks.php', 'tool/activitydates:managelocks'],
+    ];
+
+    /**
+     * Look up a page type.
+     *
+     * @param string $page The page type: 'dates' or 'locks'.
+     * @return array [script, capability]
+     * @throws Exception If the page type is unknown.
+     */
+    private function page_info(string $page): array {
+        $key = strtolower($page);
+        if (!isset(self::PAGES[$key])) {
+            throw new Exception("Unrecognised tool_activitydates page type '{$page}'");
+        }
+        return self::PAGES[$key];
+    }
+
     /**
      * Convert page names to URLs for 'I am on the "[identifier]" "tool_activitydates > [page]" page'.
      *
@@ -46,12 +67,8 @@ class behat_tool_activitydates extends behat_base {
      * @throws Exception If the page type is unknown.
      */
     protected function resolve_page_instance_url(string $page, string $identifier): moodle_url {
-        $scripts = ['dates' => 'view.php', 'locks' => 'locks.php'];
-        $key = strtolower($page);
-        if (!isset($scripts[$key])) {
-            throw new Exception("Unrecognised tool_activitydates page type '{$page}'");
-        }
-        return new moodle_url('/admin/tool/activitydates/' . $scripts[$key], [
+        [$script] = $this->page_info($page);
+        return new moodle_url('/admin/tool/activitydates/' . $script, [
             'courseid' => $this->get_course_id($identifier),
         ]);
     }
@@ -71,9 +88,8 @@ class behat_tool_activitydates extends behat_base {
      * @throws ExpectationException If the page opened, or failed for another reason.
      */
     public function i_should_be_refused_access_to_page(string $identifier, string $page): void {
-        $capabilities = ['dates' => 'tool/activitydates:manage', 'locks' => 'tool/activitydates:managelocks'];
+        [, $capability] = $this->page_info($page);
         $url = $this->resolve_page_instance_url($page, $identifier);
-        $capability = $capabilities[strtolower($page)];
 
         $this->getSession()->visit($this->locate_path($url->out_as_local_url(false)));
 
