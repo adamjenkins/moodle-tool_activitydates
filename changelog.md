@@ -2,7 +2,9 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
-## [Unreleased]
+## [2.0.0] - 2026-09-27
+
+Adds the Grade locks tab, which takes over from `tool_timelocker`.
 
 ### Added
 

@@ -1,13 +1,22 @@
 # Changes
 
-## v1.0.0
+## v2.0.0
 
-First stable release.
+Adds a **Grade locks** tab next to Activity dates. It takes over from
+`tool_timelocker`, which is discontinued.
 
-- Security: the form header now shows the course short name through
-  `format_string()` instead of raw, so any markup in it is cleaned before
-  output.
-- Fixed: the activity table, and the sessions dates are assigned from, now
-  follow the course page. Activities inside a subsection are listed where the
-  subsection sits instead of after every other section.
-- Maturity is now stable.
+- New: the Grade locks tab schedules gradebook lock dates on a session basis.
+  The selected activities of one gradable type are grouped into sessions in
+  course order, and each session's grade items lock at the end of its session.
+  Core's grade cron task applies the lock.
+- New: optional student notes. "Grades lock after {date}" or "Grades were
+  locked on {date}" appears on the activity page and, optionally, next to each
+  activity on the course page.
+- New capability `tool/activitydates:managelocks` (editing teachers and
+  managers by default). The tab row shows only the tabs a user can open.
+- New site defaults for the Grade locks tab.
+- Running alongside `tool_timelocker`: both can be installed. Version 0.1.1
+  and later of it step aside, so students see one note per activity. There is
+  no data migration; lock dates already in the gradebook stay in force.
+- Fixed: deleting a course now deletes this plugin's rows for it. The upgrade
+  also removes rows left behind by earlier deletions.
