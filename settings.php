@@ -27,6 +27,13 @@ defined('MOODLE_INTERNAL') || die();
 if ($hassiteconfig) {
     $settings = new admin_settingpage('tool_activitydates_settings', new lang_string('pluginname', 'tool_activitydates'));
 
+    // Headings keep the two tabs' same-named defaults apart.
+    $settings->add(new admin_setting_heading(
+        'tool_activitydates/datesettings',
+        get_string('tabdates', 'tool_activitydates'),
+        ''
+    ));
+
     $settings->add(new admin_setting_configtext(
         'tool_activitydates/sessionlength',
         get_string('sessionlength', 'tool_activitydates'),
@@ -56,6 +63,44 @@ if ($hassiteconfig) {
         'tool_activitydates/hideunselected',
         get_string('hideunselected', 'tool_activitydates'),
         get_string('hideunselected_help', 'tool_activitydates'),
+        0
+    ));
+
+    $settings->add(new admin_setting_heading(
+        'tool_activitydates/locksettings',
+        get_string('locksettings', 'tool_activitydates'),
+        get_string('locksettings_desc', 'tool_activitydates')
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_activitydates/locksessionlength',
+        get_string('locksessionlength', 'tool_activitydates'),
+        get_string('locksessionlength_desc', 'tool_activitydates'),
+        '7',
+        PARAM_INT,
+        3
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_activitydates/lockactivitiespersession',
+        get_string('lockactivitiespersession', 'tool_activitydates'),
+        get_string('lockactivitiespersession_desc', 'tool_activitydates'),
+        '5',
+        PARAM_INT,
+        3
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_activitydates/lockshownote',
+        get_string('shownote', 'tool_activitydates'),
+        get_string('shownote_desc', 'tool_activitydates'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_activitydates/lockshownotecoursepage',
+        get_string('shownotecoursepage', 'tool_activitydates'),
+        get_string('shownotecoursepage_desc', 'tool_activitydates'),
         0
     ));
 

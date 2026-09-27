@@ -35,6 +35,12 @@ $course = get_course($courseid);
 
 require_login($course);
 $context = context_course::instance($courseid);
+if (
+    !has_capability('tool/activitydates:manage', $context)
+    && has_capability('tool/activitydates:managelocks', $context)
+) {
+    redirect(new moodle_url('/admin/tool/activitydates/locks.php', ['courseid' => $courseid]));
+}
 require_capability('tool/activitydates:manage', $context);
 
 $url = new moodle_url('/admin/tool/activitydates/view.php', ['courseid' => $courseid]);
@@ -50,6 +56,7 @@ $modules = modtypes::eligible_course_modtypes($courseid);
 if (empty($modules)) {
     echo $OUTPUT->header();
     echo $OUTPUT->heading(get_string('pluginname', 'tool_activitydates'));
+    echo \tool_activitydates\local\tabs::render($courseid, 'dates');
     echo $OUTPUT->notification(get_string('noeligiblemodules', 'tool_activitydates'), \core\output\notification::NOTIFY_INFO);
     echo $OUTPUT->footer();
     exit;
@@ -128,6 +135,7 @@ $mform->set_data($settings);
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'tool_activitydates'));
+echo \tool_activitydates\local\tabs::render($courseid, 'dates');
 $mform->display();
 echo $OUTPUT->render_from_template('tool_activitydates/modtable', [
     'tabledata' => $tabledata,

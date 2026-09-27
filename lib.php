@@ -24,11 +24,11 @@
 
 /**
  * Add an "Activity dates" link to the course administration navigation for
- * users who can manage bulk activity dates in this course.
+ * users who can manage bulk activity dates or grade locks in this course.
  *
  * @param navigation_node $navigation the navigation node to extend
  * @param stdClass $course the course to extend navigation for
- * @param context_course $context the context of the course
+ * @param context_course $context the context of the course (unused: tabs checks capabilities itself)
  * @return void
  */
 function tool_activitydates_extend_navigation_course(
@@ -36,10 +36,10 @@ function tool_activitydates_extend_navigation_course(
     stdClass $course,
     context_course $context
 ) {
-    if (!has_capability('tool/activitydates:manage', $context)) {
+    $url = \tool_activitydates\local\tabs::first_url((int) $course->id);
+    if (!$url) {
         return;
     }
-    $url = new moodle_url('/admin/tool/activitydates/view.php', ['courseid' => $course->id]);
     $name = get_string('pluginname', 'tool_activitydates');
     $navigation->add(
         $name,

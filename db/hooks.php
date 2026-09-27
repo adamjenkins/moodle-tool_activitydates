@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Plugin version metadata for tool_activitydates.
+ * Hook callback registrations for tool_activitydates.
  *
  * @package    tool_activitydates
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -24,9 +24,13 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'tool_activitydates';
-$plugin->version   = 2026092602;
-$plugin->requires  = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 502];
-$plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.0.0';
+$callbacks = [
+    [
+        'hook' => \core\hook\output\before_standard_top_of_body_html_generation::class,
+        'callback' => \tool_activitydates\locks\hook_callbacks::class . '::add_activity_lock_note',
+    ],
+    [
+        'hook' => \core\hook\output\before_footer_html_generation::class,
+        'callback' => \tool_activitydates\locks\hook_callbacks::class . '::add_course_page_lock_notes',
+    ],
+];
