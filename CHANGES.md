@@ -1,5 +1,9 @@
 # Changes
 
+## Unreleased
+
+- Declare Moodle 5.3 support.
+
 ## v2.0.0
 
 Adds a **Grade locks** tab next to Activity dates. It takes over from

@@ -27,6 +27,6 @@ defined('MOODLE_INTERNAL') || die();
 $plugin->component = 'tool_activitydates';
 $plugin->version   = 2026092700;
 $plugin->requires  = 2025041400; // Moodle 5.0.
-$plugin->supported = [500, 502];
+$plugin->supported = [500, 503];
 $plugin->maturity  = MATURITY_STABLE;
 $plugin->release   = '2.0.0';
