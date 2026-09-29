@@ -58,18 +58,21 @@ final class locknote_test extends \advanced_testcase {
      * @param int $coursepage The shownotecoursepage value to save.
      */
     private function configure(int $courseid, array $cmids, array $notecmids, int $coursepage): void {
-        $mgr = new \tool_activitydates\locks\manager();
-        $mgr->update((object) [
-            'modtype' => 'quiz',
-            'schedulestart' => self::LOCKTIME - 7 * DAYSECS,
-            'sessionlength' => 7,
-            'activitiespersession' => 10,
+        global $DB;
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
+            'courseid' => $courseid,
             'shownote' => 0,
             'shownotecoursepage' => $coursepage,
             'resetunselected' => 0,
-            'cmids' => $cmids,
-            'shownote_cmids' => $notecmids,
-        ], $courseid);
+        ]);
+        foreach ($cmids as $cmid) {
+            $DB->insert_record('tool_activitydates_lockitem', (object) [
+                'lockid' => $lockid,
+                'cmid' => $cmid,
+                'shownote' => in_array($cmid, $notecmids) ? 1 : 0,
+            ]);
+        }
+        $mgr = new \tool_activitydates\locks\manager();
         $mgr->apply_locks(array_fill_keys($cmids, self::LOCKTIME), 'quiz', $courseid, false);
     }
 

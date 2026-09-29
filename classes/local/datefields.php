@@ -88,18 +88,27 @@ final class datefields {
     }
 
     /**
-     * Validate the dates-tab rows.
+     * Validate the table rows.
      *
-     * @param array $inputs ['timeopen' => [cmid => string], 'duedate' => [...], 'timeclose' => [...]].
+     * @param array $inputs ['timeopen' => [cmid => string], 'duedate' => [...], 'timeclose' => [...],
+     *   'timelock' => [...]].
      * @param array $allowed cmid => true: selected and scheduled cms of this course and type.
      * @param bool $hasdue whether the type has a duedate column.
+     * @param bool $haslocks whether the lock dates are edited (and so parsed).
      * @param \DateTimeZone $tz the user's timezone.
-     * @return array [values, errors]: values[cmid] = ['timeopen' => int, 'duedate' => ?int, 'timeclose' => int];
-     *   errors[cmid][field] = lang string key. Cms not in $allowed are ignored. Every date is optional:
-     *   an empty or missing value is 0 (not set), and the ordering rules (close after open; due after
-     *   open and not after close) apply only between dates that are set.
+     * @return array [values, errors]: values[cmid] = ['timeopen' => int, 'duedate' => ?int, 'timeclose' => int,
+     *   'timelock' => ?int]; errors[cmid][field] = lang string key. Cms not in $allowed are ignored. Every date
+     *   is optional: an empty or missing value is 0 (not set, or for the lock date, cleared), and the ordering
+     *   rules (close after open; due after open and not after close) apply only between dates that are set.
+     *   The lock date has no ordering rule, and is null when $haslocks is false.
      */
-    public static function validate_dates(array $inputs, array $allowed, bool $hasdue, \DateTimeZone $tz): array {
+    public static function validate_dates(
+        array $inputs,
+        array $allowed,
+        bool $hasdue,
+        bool $haslocks,
+        \DateTimeZone $tz
+    ): array {
         $values = [];
         $errors = [];
         foreach (array_keys($allowed) as $cmid) {
@@ -130,10 +139,18 @@ final class datefields {
                 }
             }
 
+            $lock = null;
+            if ($haslocks) {
+                $lock = self::read($inputs, 'timelock', $cmid, $tz);
+                if ($lock === null) {
+                    $rowerrors['timelock'] = 'errorinvaliddate';
+                }
+            }
+
             if ($rowerrors) {
                 $errors[$cmid] = $rowerrors;
             } else {
-                $values[$cmid] = ['timeopen' => $open, 'duedate' => $due, 'timeclose' => $close];
+                $values[$cmid] = ['timeopen' => $open, 'duedate' => $due, 'timeclose' => $close, 'timelock' => $lock];
             }
         }
         return [$values, $errors];

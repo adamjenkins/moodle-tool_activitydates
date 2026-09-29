@@ -135,7 +135,7 @@ if ($fromform = $mform->get_data()) {
                 'duedate' => optional_param_array('duedate_rows', [], PARAM_RAW_TRIMMED),
                 'timeclose' => optional_param_array('timeclose_rows', [], PARAM_RAW_TRIMMED),
             ];
-            [$values, $rowerrors] = datefields::validate_dates($inputs, $allowed, $hasdue, $tz);
+            [$values, $rowerrors] = datefields::validate_dates($inputs, $allowed, $hasdue, false, $tz);
             if ($rowerrors) {
                 \core\notification::error(get_string('errorrows', 'tool_activitydates', count($rowerrors)));
                 $rowinputs = $inputs;

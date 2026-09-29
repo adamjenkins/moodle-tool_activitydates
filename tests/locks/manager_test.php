@@ -17,7 +17,6 @@
 namespace tool_activitydates\locks;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use tool_activitydates\local\course_order;
 use tool_activitydates\observer;
 
 /**
@@ -29,7 +28,6 @@ use tool_activitydates\observer;
  */
 #[CoversClass(manager::class)]
 #[CoversClass(modtypes::class)]
-#[CoversClass(course_order::class)]
 #[CoversClass(observer::class)]
 final class manager_test extends \advanced_testcase {
     /**
@@ -47,25 +45,6 @@ final class manager_test extends \advanced_testcase {
     }
 
     /**
-     * Grade locks form data for quizzes: one per session, weekly from 2000000000.
-     *
-     * @param array $cmids Course module IDs to select.
-     * @param array $notecmids Course module IDs whose note is switched on.
-     * @return \stdClass
-     */
-    private function lock_formdata(array $cmids, array $notecmids): \stdClass {
-        return (object) [
-            'modtype' => 'quiz',
-            'schedulestart' => 2000000000,
-            'sessionlength' => 7,
-            'activitiespersession' => 1,
-            'shownote' => 1,
-            'resetunselected' => 0,
-            'cmids' => $cmids,
-            'shownote_cmids' => $notecmids,
-        ];
-    }
-    /**
      * eligible_course_modtypes() should include module types that have a
      * grade item in the course, and exclude those that do not.
      */
@@ -80,25 +59,7 @@ final class manager_test extends \advanced_testcase {
     }
 
     /**
-     * compute_lockdates() must stagger lock dates by session, grouping
-     * activities into sessions of $perssession, in the order given.
-     */
-    public function test_compute_lockdates_staggers_by_session(): void {
-        $start = 1000000; // Arbitrary base.
-        $day = DAYSECS;
-        $cmids = [11, 12, 13, 14, 15];
-        $mgr = new \tool_activitydates\locks\manager();
-        // Session length 7 days, 2 activities per session.
-        $dates = $mgr->compute_lockdates($cmids, $start, 7, 2);
-        $this->assertSame($start + 1 * 7 * $day, $dates[11]);
-        $this->assertSame($start + 1 * 7 * $day, $dates[12]);
-        $this->assertSame($start + 2 * 7 * $day, $dates[13]);
-        $this->assertSame($start + 2 * 7 * $day, $dates[14]);
-        $this->assertSame($start + 3 * 7 * $day, $dates[15]);
-    }
-
-    /**
-     * apply_locks() must write the computed lock timestamp to every
+     * apply_locks() must write the given lock timestamp to every
      * itemtype='mod' grade item of each selected course module.
      */
     public function test_apply_locks_writes_grade_item_locktime(): void {
@@ -111,8 +72,7 @@ final class manager_test extends \advanced_testcase {
         $mgr = new \tool_activitydates\locks\manager();
         $cm1 = get_coursemodule_from_instance('quiz', $q1->id)->id;
         $cm2 = get_coursemodule_from_instance('quiz', $q2->id)->id;
-        $start = 2000000000;
-        $dates = $mgr->compute_lockdates([$cm1, $cm2], $start, 7, 1);
+        $dates = [$cm1 => 2000000000 + 7 * DAYSECS, $cm2 => 2000000000 + 14 * DAYSECS];
         $count = $mgr->apply_locks($dates, 'quiz', $course->id, false);
         $this->assertSame(2, $count);
         $gi1 = \grade_item::fetch([
@@ -138,11 +98,9 @@ final class manager_test extends \advanced_testcase {
         $mgr = new \tool_activitydates\locks\manager();
         $cma = get_coursemodule_from_instance('quiz', $qa->id)->id;
         $cmb = get_coursemodule_from_instance('quiz', $qb->id)->id;
-        $start = 2000000000;
 
         // First, lock quiz A.
-        $initialdates = $mgr->compute_lockdates([$cma], $start, 7, 1);
-        $mgr->apply_locks($initialdates, 'quiz', $course->id, false);
+        $mgr->apply_locks([$cma => 2000000000 + 7 * DAYSECS], 'quiz', $course->id, false);
         $gia = \grade_item::fetch([
             'courseid' => $course->id,
             'itemtype' => 'mod',
@@ -152,8 +110,7 @@ final class manager_test extends \advanced_testcase {
         $this->assertNotSame(0, (int) $gia->get_locktime());
 
         // Now apply with only quiz B selected and resetunselected = true.
-        $newdates = $mgr->compute_lockdates([$cmb], $start, 7, 1);
-        $mgr->apply_locks($newdates, 'quiz', $course->id, true);
+        $mgr->apply_locks([$cmb => 2000000000 + 7 * DAYSECS], 'quiz', $course->id, true);
 
         $gia = \grade_item::fetch([
             'courseid' => $course->id,
@@ -162,164 +119,6 @@ final class manager_test extends \advanced_testcase {
             'iteminstance' => $qa->id,
         ]);
         $this->assertSame(0, (int) $gia->get_locktime());
-    }
-
-    /**
-     * update() must upsert the course's tool_activitydates_lock row and rebuild the
-     * tool_activitydates_lockitem rows, including each item's own shownote value.
-     */
-    public function test_update_persists_config_and_items(): void {
-        global $DB;
-        $this->resetAfterTest();
-        [$course, , , $cm1, $cm2] = $this->create_two_quizzes();
-
-        $mgr = new \tool_activitydates\locks\manager();
-        $formdata = $this->lock_formdata([$cm1, $cm2], [$cm1]);
-        $formdata->shownotecoursepage = 1;
-
-        $settings = $mgr->update($formdata, $course->id);
-
-        $this->assertNotEmpty($settings->id);
-        $row = $DB->get_record('tool_activitydates_lock', ['courseid' => $course->id]);
-        $this->assertNotFalse($row);
-        $this->assertSame('quiz', $row->modtype);
-        $this->assertSame(2000000000, (int) $row->schedulestart);
-        $this->assertSame(7, (int) $row->sessionlength);
-        $this->assertSame(1, (int) $row->activitiespersession);
-        $this->assertSame(1, (int) $row->shownote);
-        $this->assertSame(1, (int) $row->shownotecoursepage);
-
-        $items = $DB->get_records('tool_activitydates_lockitem', ['lockid' => $row->id], 'cmid ASC');
-        $this->assertCount(2, $items);
-        $items = array_values($items);
-        $this->assertSame((int) $cm1, (int) $items[0]->cmid);
-        $this->assertSame(1, (int) $items[0]->shownote);
-        $this->assertSame((int) $cm2, (int) $items[1]->cmid);
-        $this->assertSame(0, (int) $items[1]->shownote);
-    }
-
-    /**
-     * get_table_data() must return one row per gradable activity of the
-     * settings' modtype, in course order, with the exact expected keys and
-     * correct selection state. The locktime field must reflect the earliest
-     * scheduled locktime from the activity's grade items.
-     */
-    public function test_get_table_data(): void {
-        global $CFG;
-        require_once($CFG->libdir . '/gradelib.php');
-        $this->resetAfterTest();
-        [$course, , , $cm1, $cm2] = $this->create_two_quizzes();
-
-        $mgr = new \tool_activitydates\locks\manager();
-        $settings = $mgr->update($this->lock_formdata([$cm1], [$cm1]), $course->id);
-
-        // Apply locks to exercise the aggregation logic: cm1 gets a future locktime,
-        // cm2 remains unlocked.
-        $start = 2000000000;
-        $lockdates = $mgr->compute_lockdates([$cm1], $start, 7, 1);
-        $mgr->apply_locks($lockdates, 'quiz', $course->id, false);
-        $expectedlocktime = $start + 7 * DAYSECS;
-
-        $rows = $mgr->get_table_data($settings);
-
-        $this->assertCount(2, $rows);
-        $this->assertSame((int) $cm1, (int) $rows[0]['cmid']);
-        $this->assertSame((int) $cm2, (int) $rows[1]['cmid']);
-
-        foreach ($rows as $row) {
-            $this->assertSame(
-                ['cmid', 'name', 'gradeitemids', 'locktime', 'selected', 'shownote', 'proposed'],
-                array_keys($row)
-            );
-        }
-
-        $this->assertTrue($rows[0]['selected']);
-        $this->assertFalse($rows[1]['selected']);
-        $this->assertNotEmpty($rows[0]['gradeitemids']);
-        $this->assertIsInt($rows[0]['locktime']);
-        // Verify the earliest-locktime aggregation: cm1 should have the applied locktime.
-        $this->assertSame($expectedlocktime, $rows[0]['locktime']);
-        // CM2 should be unlocked (0).
-        $this->assertSame(0, $rows[1]['locktime']);
-    }
-
-    /**
-     * get_table_data() must list activities in COURSE-APPEARANCE order
-     * (section + position), not creation/instance-id order. This matters
-     * because the returned row order also drives compute_lockdates()'s
-     * session assignment.
-     */
-    public function test_get_table_data_course_order(): void {
-        global $CFG;
-        require_once($CFG->libdir . '/gradelib.php');
-        $this->resetAfterTest();
-        $course = $this->getDataGenerator()->create_course(['numsections' => 3], ['createsections' => true]);
-        // Create the quizzes into sections 3, 1, 2 respectively, so that their
-        // course-appearance order (by section: q2, q3, q1) is deliberately
-        // different from creation order (q1, q2, q3) = cmid-ascending order.
-        // Placing them at creation avoids any cm-move API: cmactions::move_before()
-        // is Moodle 5.2 only (MDL-86854) and moveto_module() is deprecated there,
-        // whereas the generator's section option behaves the same on 5.0-5.2.
-        $q1 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100, 'section' => 3]);
-        $q2 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100, 'section' => 1]);
-        $q3 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100, 'section' => 2]);
-        $cm1 = (int) get_coursemodule_from_instance('quiz', $q1->id)->id;
-        $cm2 = (int) get_coursemodule_from_instance('quiz', $q2->id)->id;
-        $cm3 = (int) get_coursemodule_from_instance('quiz', $q3->id)->id;
-
-        $mgr = new \tool_activitydates\locks\manager();
-        $settings = (object) [
-            'id' => 0,
-            'courseid' => $course->id,
-            'modtype' => 'quiz',
-            'shownote' => 0,
-        ];
-
-        $rows = $mgr->get_table_data($settings);
-
-        $this->assertCount(3, $rows);
-        $actualcmids = array_map('intval', array_column($rows, 'cmid'));
-        $this->assertSame([$cm2, $cm3, $cm1], $actualcmids);
-        // Guard the test's own premise: course order must differ from creation
-        // order, otherwise this would pass even on a creation-ordered result.
-        $this->assertNotSame([$cm1, $cm2, $cm3], $actualcmids);
-    }
-
-    /**
-     * Activities inside a subsection must be listed where the subsection sits
-     * on the course page, not after every other section. A subsection's
-     * content lives in a delegated section numbered after all listed
-     * sections, so walking sections by number puts it at the very end.
-     */
-    public function test_get_table_data_subsection_order(): void {
-        global $CFG;
-        require_once($CFG->libdir . '/gradelib.php');
-        $this->resetAfterTest();
-        $generator = $this->getDataGenerator();
-        $course = $generator->create_course(['numsections' => 2], ['createsections' => true]);
-
-        // Section 1: q1, then the subsection (holding q2), then q3. Section 2: q4.
-        $q1 = $generator->create_module('quiz', ['course' => $course->id, 'grade' => 100, 'section' => 1]);
-        $subsection = $generator->create_module('subsection', ['course' => $course->id, 'section' => 1]);
-        $delegated = get_fast_modinfo($course->id)->get_section_info_by_component('mod_subsection', $subsection->id);
-        $q2 = $generator->create_module(
-            'quiz',
-            ['course' => $course->id, 'grade' => 100, 'section' => $delegated->section]
-        );
-        $q3 = $generator->create_module('quiz', ['course' => $course->id, 'grade' => 100, 'section' => 1]);
-        $q4 = $generator->create_module('quiz', ['course' => $course->id, 'grade' => 100, 'section' => 2]);
-
-        $mgr = new \tool_activitydates\locks\manager();
-        $settings = (object) [
-            'id' => 0,
-            'courseid' => $course->id,
-            'modtype' => 'quiz',
-            'shownote' => 0,
-        ];
-        $rows = $mgr->get_table_data($settings);
-
-        $expected = array_map('intval', [$q1->cmid, $q2->cmid, $q3->cmid, $q4->cmid]);
-        $this->assertSame($expected, array_map('intval', array_column($rows, 'cmid')));
     }
 
     /**
@@ -333,18 +132,8 @@ final class manager_test extends \advanced_testcase {
         $q1 = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
         $cm1 = get_coursemodule_from_instance('quiz', $q1->id)->id;
 
-        $mgr = new \tool_activitydates\locks\manager();
-        $formdata = new \stdClass();
-        $formdata->modtype = 'quiz';
-        $formdata->schedulestart = 2000000000;
-        $formdata->sessionlength = 7;
-        $formdata->activitiespersession = 1;
-        $formdata->shownote = 1;
-        $formdata->resetunselected = 0;
-        $formdata->cmids = [$cm1];
-        $formdata->shownote_cmids = [$cm1];
-        $settings = $mgr->update($formdata, $course->id);
-        $lockid = $settings->id;
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $course->id, 'lockmode' => 'session']);
+        $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cm1, 'shownote' => 1]);
 
         $this->assertSame(1, $DB->count_records('tool_activitydates_lock', ['courseid' => $course->id]));
         $this->assertSame(1, $DB->count_records('tool_activitydates_lockitem', ['lockid' => $lockid]));
@@ -376,35 +165,6 @@ final class manager_test extends \advanced_testcase {
     }
 
     /**
-     * update() must drop cmids from another course or another activity type.
-     */
-    public function test_update_drops_foreign_cmids(): void {
-        global $DB;
-        $this->resetAfterTest();
-        $gen = $this->getDataGenerator();
-        $course = $gen->create_course();
-        $other = $gen->create_course();
-        $quiz = $gen->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
-        $assign = $gen->create_module('assign', ['course' => $course->id]);
-        $foreign = $gen->create_module('quiz', ['course' => $other->id, 'grade' => 100]);
-
-        $settings = (new manager())->update((object) [
-            'modtype' => 'quiz',
-            'schedulestart' => 2000000000,
-            'sessionlength' => 7,
-            'activitiespersession' => 1,
-            'shownote' => 1,
-            'shownotecoursepage' => 0,
-            'resetunselected' => 0,
-            'cmids' => [$quiz->cmid, $assign->cmid, $foreign->cmid],
-            'shownote_cmids' => [$quiz->cmid, $assign->cmid, $foreign->cmid],
-        ], $course->id);
-
-        $saved = $DB->get_fieldset_select('tool_activitydates_lockitem', 'cmid', 'lockid = ?', [$settings->id]);
-        $this->assertSame([(int) $quiz->cmid], array_map('intval', $saved));
-    }
-
-    /**
      * apply_locks() must skip a selected activity that has no grade item.
      */
     public function test_apply_locks_skips_activity_without_grade_item(): void {
@@ -430,99 +190,21 @@ final class manager_test extends \advanced_testcase {
     }
 
     /**
-     * A selection passed to get_table_data() must win over the saved one.
+     * current_locktime() is the earliest locktime of the cm's grade items, 0 without one;
+     * has_grade_item() tells whether there is a grade item at all.
      */
-    public function test_get_table_data_selection_override(): void {
+    public function test_current_locktime(): void {
         $this->resetAfterTest();
         [$course, , , $cm1, $cm2] = $this->create_two_quizzes();
-
+        $ungraded = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 0]);
         $mgr = new manager();
-        $settings = $mgr->update($this->lock_formdata([$cm1], []), $course->id);
+        $mgr->apply_locks([$cm1 => 2000000000], 'quiz', $course->id, false);
 
-        $saved = $mgr->get_table_data($settings);
-        $this->assertSame([true, false], array_column($saved, 'selected'));
-
-        $overridden = $mgr->get_table_data($settings, [(int) $cm2]);
-        $this->assertSame([false, true], array_column($overridden, 'selected'));
-
-        $none = $mgr->get_table_data($settings, []);
-        $this->assertSame([false, false], array_column($none, 'selected'));
-    }
-
-    /**
-     * Each selected row proposes compute_lockdates()'s date for the selected
-     * rows in table order; unselected rows propose 0.
-     */
-    public function test_proposed_lock_dates(): void {
-        $this->resetAfterTest();
-        $course = $this->getDataGenerator()->create_course();
-        $cmids = [];
-        for ($i = 0; $i < 4; $i++) {
-            $quiz = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
-            $cmids[] = (int) $quiz->cmid;
-        }
-        $mgr = new manager();
-        $settings = (object) [
-            'id' => 0,
-            'courseid' => $course->id,
-            'modtype' => 'quiz',
-            'schedulestart' => 2000000000,
-            'sessionlength' => 7,
-            'activitiespersession' => 2,
-            'shownote' => 0,
-        ];
-
-        // Select the first, third and fourth: the unselected second row must not
-        // take a place in the session grouping.
-        $selected = [$cmids[3], $cmids[0], $cmids[2]];
-        $rows = $mgr->get_table_data($settings, $selected);
-
-        $expected = $mgr->compute_lockdates([$cmids[0], $cmids[2], $cmids[3]], 2000000000, 7, 2);
-        $this->assertSame($cmids, array_map('intval', array_column($rows, 'cmid')));
-        $this->assertSame($expected[$cmids[0]], $rows[0]['proposed']);
-        $this->assertSame(0, $rows[1]['proposed']);
-        $this->assertSame($expected[$cmids[2]], $rows[2]['proposed']);
-        $this->assertSame($expected[$cmids[3]], $rows[3]['proposed']);
-        // The first two selected rows share session 1; the third is in session 2.
-        $this->assertSame(2000000000 + 7 * DAYSECS, $rows[2]['proposed']);
-        $this->assertSame(2000000000 + 14 * DAYSECS, $rows[3]['proposed']);
-    }
-
-    /**
-     * settings_from_form() casts the submitted values without persisting them,
-     * and update() persists exactly what it computed.
-     */
-    public function test_settings_from_form_casts(): void {
-        global $DB;
-        $this->resetAfterTest();
-        [$course] = $this->create_two_quizzes();
-        $mgr = new manager();
-
-        $fromform = (object) [
-            'modtype' => 'quiz',
-            'schedulestart' => '2000000000',
-            'sessionlength' => '7',
-            'activitiespersession' => '3',
-            'shownote' => '1',
-            'shownotecoursepage' => '',
-            'resetunselected' => '0',
-        ];
-        $settings = $mgr->settings_from_form($fromform, (int) $course->id);
-
-        $this->assertFalse($DB->record_exists('tool_activitydates_lock', ['courseid' => $course->id]));
-        $this->assertSame((int) $course->id, $settings->courseid);
-        $this->assertSame('quiz', $settings->modtype);
-        $this->assertSame(2000000000, $settings->schedulestart);
-        $this->assertSame(7, $settings->sessionlength);
-        $this->assertSame(3, $settings->activitiespersession);
-        $this->assertSame(1, $settings->shownote);
-        $this->assertSame(0, $settings->shownotecoursepage);
-        $this->assertSame(0, $settings->resetunselected);
-
-        $saved = $mgr->update($fromform, (int) $course->id);
-        $row = $DB->get_record('tool_activitydates_lock', ['id' => $saved->id]);
-        foreach ((array) $settings as $field => $value) {
-            $this->assertEquals($value, $row->$field, $field);
-        }
+        $modinfo = get_fast_modinfo($course->id);
+        $this->assertSame(2000000000, $mgr->current_locktime($course->id, $modinfo->get_cm($cm1)));
+        $this->assertSame(0, $mgr->current_locktime($course->id, $modinfo->get_cm($cm2)));
+        $this->assertSame(0, $mgr->current_locktime($course->id, $modinfo->get_cm($ungraded->cmid)));
+        $this->assertTrue($mgr->has_grade_item($course->id, $modinfo->get_cm($cm2)));
+        $this->assertFalse($mgr->has_grade_item($course->id, $modinfo->get_cm($ungraded->cmid)));
     }
 }

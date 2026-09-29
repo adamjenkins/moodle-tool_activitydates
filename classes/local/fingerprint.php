@@ -34,22 +34,27 @@ namespace tool_activitydates\local;
  */
 final class fingerprint {
     /**
-     * Fingerprint of the dates-tab inputs.
+     * Fingerprint of the page's date-affecting inputs.
      *
      * Covers modtype, schedulestart, the finish date (when enabled),
      * sessionlength, activitiespersession, the close mode and its days or date,
      * the due mode and its days or date (when the type has a duedate column),
-     * and the selected cmids. hideunselected and resetunselected are excluded.
+     * the lock mode and its days or date (when the lock dates are edited), and
+     * the selected cmids. hideunselected, resetunselected and the note options
+     * are excluded.
      *
-     * @param \stdClass $settings settings object (tool_activitydates row shape).
+     * @param \stdClass $settings settings object (tool_activitydates row shape, plus
+     *   lockmode, lockdays and lockdate when $haslocks).
      * @param array $selectedcmids the selected cm ids, in any order.
      * @param bool $hasdue whether the type has a duedate column.
+     * @param bool $haslocks whether the table edits lock dates.
      * @return string 40-character sha1 hex digest.
      */
-    public static function dates(\stdClass $settings, array $selectedcmids, bool $hasdue): string {
+    public static function dates(\stdClass $settings, array $selectedcmids, bool $hasdue, bool $haslocks = false): string {
         $finishenabled = !empty($settings->finishenabled);
         $close = self::mode_fields($settings, 'close');
         $due = $hasdue ? self::mode_fields($settings, 'due') : ['', 0, 0];
+        $lock = $haslocks ? self::mode_fields($settings, 'lock') : ['', 0, 0];
         return self::hash([
             'dates',
             (string) ($settings->modtype ?? ''),
@@ -60,38 +65,18 @@ final class fingerprint {
             (int) ($settings->activitiespersession ?? 0),
             ...$close,
             ...$due,
+            ...$lock,
             self::selection($selectedcmids),
         ]);
     }
 
     /**
-     * Fingerprint of the locks-tab inputs.
-     *
-     * Covers modtype, schedulestart, sessionlength, activitiespersession and
-     * the selected cmids. The note options are excluded.
-     *
-     * @param \stdClass $settings settings object (modtype, schedulestart, sessionlength, activitiespersession).
-     * @param array $selectedcmids the selected cm ids, in any order.
-     * @return string 40-character sha1 hex digest.
-     */
-    public static function locks(\stdClass $settings, array $selectedcmids): string {
-        return self::hash([
-            'locks',
-            (string) ($settings->modtype ?? ''),
-            self::minute($settings->schedulestart ?? 0),
-            (int) ($settings->sessionlength ?? 0),
-            (int) ($settings->activitiespersession ?? 0),
-            self::selection($selectedcmids),
-        ]);
-    }
-
-    /**
-     * The mode, days and date of the close or due setting.
+     * The mode, days and date of the close, due or lock setting.
      *
      * The days count only in days mode and the date only in date mode.
      *
      * @param \stdClass $settings settings object.
-     * @param string $prefix 'close' or 'due'.
+     * @param string $prefix 'close', 'due' or 'lock'.
      * @return array [mode, days, date]
      */
     private static function mode_fields(\stdClass $settings, string $prefix): array {

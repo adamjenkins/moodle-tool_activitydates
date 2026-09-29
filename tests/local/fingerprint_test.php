@@ -80,7 +80,6 @@ final class fingerprint_test extends \basic_testcase {
         $s = self::settings();
         $late = self::settings(['schedulestart' => self::START + 59]);
         $this->assertSame(fingerprint::dates($s, [1], false), fingerprint::dates($late, [1], false));
-        $this->assertSame(fingerprint::locks($s, [1]), fingerprint::locks($late, [1]));
 
         $finish = self::settings(['finishenabled' => 1, 'schedulefinish' => self::START + 86400 * 30]);
         $finishlate = self::settings(['finishenabled' => 1, 'schedulefinish' => self::START + 86400 * 30 + 42]);
@@ -93,6 +92,10 @@ final class fingerprint_test extends \basic_testcase {
         $due = self::settings(['duemode' => schedule::MODE_DATE, 'duedate' => self::START + 1800]);
         $duelate = self::settings(['duemode' => schedule::MODE_DATE, 'duedate' => self::START + 1800 + 30]);
         $this->assertSame(fingerprint::dates($due, [1], true), fingerprint::dates($duelate, [1], true));
+
+        $lock = self::settings(['lockmode' => schedule::MODE_DATE, 'lockdate' => self::START + 900]);
+        $locklate = self::settings(['lockmode' => schedule::MODE_DATE, 'lockdate' => self::START + 900 + 59]);
+        $this->assertSame(fingerprint::dates($lock, [1], false, true), fingerprint::dates($locklate, [1], false, true));
 
         // A whole minute is a change.
         $nextminute = self::settings(['schedulestart' => self::START + 60]);
@@ -186,42 +189,33 @@ final class fingerprint_test extends \basic_testcase {
     }
 
     /**
-     * The locks fingerprint: its included and excluded inputs.
+     * The lock mode and its days or date change the hash only when the table edits lock dates.
      */
-    public function test_locks(): void {
-        $base = self::settings();
-        $basehash = fingerprint::locks($base, [2, 1]);
-        $this->assertSame($basehash, fingerprint::locks($base, [1, 2, '2']));
-        $this->assertMatchesRegularExpression('/^[0-9a-f]{40}$/', $basehash);
-
+    public function test_lock_fields_only_with_locks(): void {
+        $base = self::settings(['lockmode' => schedule::MODE_NONE, 'lockdays' => 7, 'lockdate' => 0]);
         $changes = [
-            'modtype' => 'assign',
-            'schedulestart' => self::START + 60,
-            'sessionlength' => 14,
-            'activitiespersession' => 2,
+            'lockmode' => ['lockmode' => schedule::MODE_SESSION],
+            'lockdays' => ['lockmode' => schedule::MODE_DAYS, 'lockdays' => 3],
+            'lockdate' => ['lockmode' => schedule::MODE_DATE, 'lockdate' => self::START + 3600],
         ];
-        foreach ($changes as $field => $value) {
-            $changed = clone $base;
-            $changed->$field = $value;
-            $this->assertNotSame($basehash, fingerprint::locks($changed, [1, 2]), $field);
+        foreach ($changes as $label => $overrides) {
+            $changed = self::settings(array_merge((array) $base, $overrides));
+            $this->assertSame(fingerprint::dates($base, [1], true), fingerprint::dates($changed, [1], true), $label);
+            $this->assertNotSame(
+                fingerprint::dates($base, [1], true, true),
+                fingerprint::dates($changed, [1], true, true),
+                $label
+            );
         }
-        $this->assertNotSame($basehash, fingerprint::locks($base, [1, 3]), 'selection');
 
-        // Dates-tab-only fields and the other options do not count.
-        $other = self::settings([
-            'finishenabled' => 1,
-            'schedulefinish' => self::START + 86400,
-            'closemode' => schedule::MODE_DAYS,
-            'closedays' => 3,
-            'duemode' => schedule::MODE_DATE,
-            'duedate' => self::START,
-            'hideunselected' => 1,
-            'resetunselected' => 1,
-            'locknote' => 1,
-        ]);
-        $this->assertSame($basehash, fingerprint::locks($other, [1, 2]));
+        // As for close and due, the days count only in days mode and the date only in date mode.
+        $days = self::settings(['lockmode' => schedule::MODE_DAYS, 'lockdays' => 3, 'lockdate' => 0]);
+        $dayswithdate = self::settings(['lockmode' => schedule::MODE_DAYS, 'lockdays' => 3, 'lockdate' => self::START]);
+        $this->assertSame(fingerprint::dates($days, [1], false, true), fingerprint::dates($dayswithdate, [1], false, true));
+        $days5 = self::settings(['lockmode' => schedule::MODE_DAYS, 'lockdays' => 5]);
+        $this->assertNotSame(fingerprint::dates($days, [1], false, true), fingerprint::dates($days5, [1], false, true));
 
-        // The two tabs never share a hash.
-        $this->assertNotSame($basehash, fingerprint::dates($base, [1, 2], false));
+        // Settings without lock fields hash like lock mode none.
+        $this->assertSame(fingerprint::dates(self::settings(), [1], false), fingerprint::dates($base, [1], false));
     }
 }

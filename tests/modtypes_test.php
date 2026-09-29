@@ -30,6 +30,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
  * Tests for modtypes class.
  */
 #[CoversClass(modtypes::class)]
+#[CoversClass(local\pagetypes::class)]
 final class modtypes_test extends \advanced_testcase {
     public function test_has_date_columns(): void {
         $this->assertTrue(modtypes::has_date_columns('quiz'));
@@ -51,5 +52,35 @@ final class modtypes_test extends \advanced_testcase {
 
         $types = modtypes::eligible_course_modtypes($course->id);
         $this->assertSame(['choice', 'quiz'], array_keys($types)); // Deduped, label-sorted, assign/page excluded.
+    }
+
+    /**
+     * The page offers the union of the dated and the graded types, keeping only
+     * those the user can act on, sorted by label.
+     */
+    public function test_pagetypes_union_and_capabilities(): void {
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $generator->create_module('quiz', ['course' => $course->id, 'grade' => 100]); // Dates and a grade item.
+        $generator->create_module('choice', ['course' => $course->id]); // Dates, no grade item.
+        $generator->create_module('assign', ['course' => $course->id]); // A grade item, no timeopen/timeclose.
+        $generator->create_module('page', ['course' => $course->id]); // Neither.
+
+        $both = local\pagetypes::for_course($course->id, true, true);
+        $this->assertSame(['assign', 'choice', 'quiz'], array_keys($both));
+        $this->assertSame(['label' => 'Assignments', 'hasdates' => false, 'hasgrades' => true], $both['assign']);
+        $this->assertSame(['label' => 'Choices', 'hasdates' => true, 'hasgrades' => false], $both['choice']);
+        $this->assertSame(['label' => 'Quizzes', 'hasdates' => true, 'hasgrades' => true], $both['quiz']);
+
+        // Dates only: the lock-only type goes.
+        $this->assertSame(['choice', 'quiz'], array_keys(local\pagetypes::for_course($course->id, true, false)));
+
+        // Locks only: the dates-only type goes; the flags still describe the type.
+        $locks = local\pagetypes::for_course($course->id, false, true);
+        $this->assertSame(['assign', 'quiz'], array_keys($locks));
+        $this->assertTrue($locks['quiz']['hasdates']);
+
+        $this->assertSame([], local\pagetypes::for_course($course->id, false, false));
     }
 }

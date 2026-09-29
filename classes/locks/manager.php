@@ -25,40 +25,16 @@
 namespace tool_activitydates\locks;
 
 use stdClass;
-use tool_activitydates\local\course_order;
 
 /**
- * Computes staggered gradebook lock dates, applies them to native grade
- * items, and persists the course's scheduling configuration and selections.
+ * Reads and writes the lock dates of native grade items.
  */
 class manager {
     /**
-     * Compute a staggered lock date for each course module, grouping them
-     * into sessions of $perssession activities (in the given order).
-     *
-     * Pure function: performs no reads or writes.
-     *
-     * @param array $cmids Course module IDs, in the order to be staggered.
-     * @param int $schedulestart Timestamp when the first session starts.
-     * @param int $sessionlengthdays Length of each session, in days.
-     * @param int $perssession Number of activities grouped per session.
-     * @return array Map of cmid => lock timestamp.
-     */
-    public function compute_lockdates(array $cmids, int $schedulestart, int $sessionlengthdays, int $perssession): array {
-        $perssession = max(1, $perssession);
-        $result = [];
-        foreach (array_values($cmids) as $index => $cmid) {
-            $session = intdiv($index, $perssession); // 0-based session.
-            $result[$cmid] = $schedulestart + ($session + 1) * $sessionlengthdays * DAYSECS;
-        }
-        return $result;
-    }
-
-    /**
-     * Apply computed lock dates to native grade items, and optionally clear
+     * Apply lock dates to native grade items, and optionally clear
      * the locktime on activities of the same modtype that were not selected.
      *
-     * @param array $lockdates Map of cmid => lock timestamp, as from compute_lockdates().
+     * @param array $lockdates Map of cmid => lock timestamp; 0 clears the lock.
      * @param string $modtype The course module type being scheduled.
      * @param int $courseid The course ID.
      * @param bool $resetunselected If true, clear locktime on unselected activities of $modtype.
@@ -120,173 +96,40 @@ class manager {
     }
 
     /**
-     * Build the lock settings from submitted form data, without persisting them.
+     * The current lock date of a course module: the earliest locktime of its
+     * grade items, matching how the student-facing note picks its date.
      *
-     * The id is not set: the caller adds the saved row's id when it needs one.
+     * Core keeps locktime after cron locks an item, so this can be a past date.
      *
-     * @param stdClass $fromform Submitted form data: modtype, schedulestart,
-     *                           sessionlength, activitiespersession, shownote,
-     *                           shownotecoursepage, resetunselected.
      * @param int $courseid The course ID.
-     * @return stdClass The settings (tool_activitydates_lock row shape, no id or timemodified).
+     * @param \cm_info $cm The course module.
+     * @return int The earliest locktime, or 0 if no grade item has one (or there is no grade item).
      */
-    public function settings_from_form(stdClass $fromform, int $courseid): stdClass {
-        return (object) [
-            'courseid' => $courseid,
-            'modtype' => (string) $fromform->modtype,
-            'schedulestart' => (int) $fromform->schedulestart,
-            'sessionlength' => (int) $fromform->sessionlength,
-            'activitiespersession' => (int) $fromform->activitiespersession,
-            'shownote' => !empty($fromform->shownote) ? 1 : 0,
-            'shownotecoursepage' => !empty($fromform->shownotecoursepage) ? 1 : 0,
-            'resetunselected' => !empty($fromform->resetunselected) ? 1 : 0,
-        ];
-    }
-
-    /**
-     * Upsert the course's tool_activitydates_lock configuration row and rebuild its
-     * tool_activitydates_lockitem rows from the submitted selections.
-     *
-     * @param stdClass $formdata Submitted form data: modtype, schedulestart,
-     *                           sessionlength, activitiespersession, shownote,
-     *                           shownotecoursepage, resetunselected, cmids[],
-     *                           shownote_cmids[].
-     * @param int $courseid The course ID.
-     * @return stdClass The upserted tool_activitydates_lock settings row.
-     */
-    public function update(stdClass $formdata, int $courseid): stdClass {
-        global $DB;
-
-        $settings = $DB->get_record('tool_activitydates_lock', ['courseid' => $courseid]);
-        if (!$settings) {
-            $settings = new stdClass();
-            $settings->courseid = $courseid;
-        }
-
-        foreach ((array) $this->settings_from_form($formdata, $courseid) as $field => $value) {
-            $settings->$field = $value;
-        }
-        $settings->timemodified = time();
-
-        // Only cmids that actually belong to this course and modtype may be persisted, otherwise
-        // an editing teacher in one course could plant an item row for another course's/type's cmid.
-        // get_instances_of() is keyed by instance id, not cmid, so read each cm_info's ->id.
-        $validcmids = array_map(fn($cm) => (int) $cm->id, get_fast_modinfo($courseid)->get_instances_of($formdata->modtype));
-
-        $cmids = !empty($formdata->cmids) ? array_map('intval', (array) $formdata->cmids) : [];
-        $cmids = array_intersect($cmids, $validcmids);
-
-        $shownotecmids = !empty($formdata->shownote_cmids)
-            ? array_map('intval', (array) $formdata->shownote_cmids)
-            : [];
-        $shownotecmids = array_flip(array_intersect($shownotecmids, $validcmids));
-
-        $transaction = $DB->start_delegated_transaction();
-
-        if (!empty($settings->id)) {
-            $DB->update_record('tool_activitydates_lock', $settings);
-        } else {
-            $settings->id = $DB->insert_record('tool_activitydates_lock', $settings);
-        }
-
-        $DB->delete_records('tool_activitydates_lockitem', ['lockid' => $settings->id]);
-
-        foreach ($cmids as $cmid) {
-            $item = new stdClass();
-            $item->lockid = $settings->id;
-            $item->cmid = $cmid;
-            $item->shownote = array_key_exists($cmid, $shownotecmids) ? 1 : 0;
-            $DB->insert_record('tool_activitydates_lockitem', $item);
-        }
-
-        $transaction->allow_commit();
-
-        return $settings;
-    }
-
-    /**
-     * Build the ordered activity table for the settings' modtype, in course-page
-     * order (activities in a subsection appear where the subsection sits),
-     * describing each activity's current lock state and selection, and the
-     * lock date proposed for each selected activity.
-     *
-     * @param stdClass $settings A tool_activitydates_lock settings row (courseid, modtype, shownote,
-     *                           schedulestart, sessionlength, activitiespersession, id if saved).
-     * @param array|null $selectedcmids The selected cmids, overriding the saved selection; null uses the saved one.
-     * @return array Ordered list of rows: [cmid, name, gradeitemids[], locktime, selected, shownote, proposed].
-     *               proposed is compute_lockdates()'s date over the selected rows in table order, 0 if unselected.
-     */
-    public function get_table_data(stdClass $settings, ?array $selectedcmids = null): array {
-        global $CFG, $DB;
+    public function current_locktime(int $courseid, \cm_info $cm): int {
+        global $CFG;
         require_once($CFG->libdir . '/gradelib.php');
 
-        $courseid = $settings->courseid;
-        $modtype = $settings->modtype;
-
-        $existingitems = [];
-        if (!empty($settings->id)) {
-            $records = $DB->get_records('tool_activitydates_lockitem', ['lockid' => $settings->id]);
-            foreach ($records as $record) {
-                $existingitems[$record->cmid] = $record;
+        $locktimes = [];
+        foreach ($this->fetch_mod_grade_items($courseid, $cm) as $gradeitem) {
+            $locktime = (int) $gradeitem->get_locktime();
+            if ($locktime > 0) {
+                $locktimes[] = $locktime;
             }
         }
+        return $locktimes ? min($locktimes) : 0;
+    }
 
-        $override = $selectedcmids === null ? [] : array_flip(array_map('intval', $selectedcmids));
+    /**
+     * Whether a course module has an itemtype='mod' grade item.
+     *
+     * @param int $courseid The course ID.
+     * @param \cm_info $cm The course module.
+     * @return bool
+     */
+    public function has_grade_item(int $courseid, \cm_info $cm): bool {
+        global $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
 
-        $modinfo = get_fast_modinfo($courseid);
-        $rows = [];
-        foreach (course_order::sort($modinfo, $modinfo->get_instances_of($modtype)) as $cm) {
-            if ($cm->deletioninprogress) {
-                continue;
-            }
-
-            $gradeitems = $this->fetch_mod_grade_items($courseid, $cm);
-            $gradeitemids = [];
-            $locktimes = [];
-            if ($gradeitems) {
-                foreach ($gradeitems as $gradeitem) {
-                    $gradeitemids[] = (int) $gradeitem->id;
-                    $itemlocktime = (int) $gradeitem->get_locktime();
-                    if ($itemlocktime > 0) {
-                        $locktimes[] = $itemlocktime;
-                    }
-                }
-            }
-            // Use the earliest scheduled locktime, matching how the student-facing note picks its
-            // date; 0 (none) if no grade item has one. Core keeps locktime after cron locks an item,
-            // so this can be a past date.
-            $locktime = $locktimes ? min($locktimes) : 0;
-
-            $selected = $selectedcmids === null
-                ? array_key_exists($cm->id, $existingitems)
-                : array_key_exists((int) $cm->id, $override);
-            // A saved item keeps its own note setting; any other row takes the course default.
-            $shownote = $selected && isset($existingitems[$cm->id])
-                ? (bool) $existingitems[$cm->id]->shownote
-                : (bool) ($settings->shownote ?? false);
-
-            $rows[] = [
-                'cmid' => $cm->id,
-                'name' => $cm->name,
-                'gradeitemids' => $gradeitemids,
-                'locktime' => $locktime,
-                'selected' => $selected,
-                'shownote' => $shownote,
-                'proposed' => 0,
-            ];
-        }
-
-        $selectedrows = array_filter($rows, fn($row) => $row['selected']);
-        $proposed = $this->compute_lockdates(
-            array_column($selectedrows, 'cmid'),
-            (int) ($settings->schedulestart ?? 0),
-            (int) ($settings->sessionlength ?? 0),
-            (int) ($settings->activitiespersession ?? 0)
-        );
-        foreach (array_keys($selectedrows) as $index) {
-            $rows[$index]['proposed'] = $proposed[$rows[$index]['cmid']];
-        }
-
-        return $rows;
+        return (bool) $this->fetch_mod_grade_items($courseid, $cm);
     }
 }

@@ -890,4 +890,398 @@ final class activitydates_test extends \advanced_testcase {
         );
         $this->assertSame([], activitydates::saved_selection(0, $validcmids));
     }
+
+    /**
+     * A course with graded quizzes.
+     *
+     * @param int $count the number of quizzes.
+     * @return array [course, quizzes]
+     */
+    private function graded_quizzes(int $count): array {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $quizzes = [];
+        for ($i = 1; $i <= $count; $i++) {
+            $quizzes[] = $generator->create_module('quiz', ['course' => $course->id, 'grade' => 100, 'name' => "Quiz$i"]);
+        }
+        return [$course, $quizzes];
+    }
+
+    /**
+     * The locktime of an activity's grade item.
+     *
+     * @param int $courseid the course id.
+     * @param string $modname the module name.
+     * @param int $instanceid the module instance id.
+     * @return int
+     */
+    private function locktime(int $courseid, string $modname, int $instanceid): int {
+        global $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
+        $item = \grade_item::fetch(['courseid' => $courseid, 'itemtype' => 'mod', 'itemmodule' => $modname,
+            'iteminstance' => $instanceid]);
+        $this->assertNotFalse($item);
+        return (int) $item->get_locktime();
+    }
+
+    /**
+     * The activitygroup checkboxes ticking the given cms.
+     *
+     * @param array $cms module records with a cmid.
+     * @return array
+     */
+    private function ticks(array $cms): array {
+        return array_fill_keys(array_map(fn($cm) => 'activity_' . $cm->cmid, $cms), 1);
+    }
+
+    /**
+     * Lock mode "No lock" leaves the existing grade locks of the selected rows alone.
+     */
+    public function test_lockmode_none_leaves_locks(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$course, [$quiz1, $quiz2]] = $this->graded_quizzes(2);
+        $existing = strtotime('2031-01-01 09:00');
+        (new locks\manager())->apply_locks([$quiz1->cmid => $existing, $quiz2->cmid => $existing], 'quiz', $course->id, false);
+
+        $fromform = $this->fromform(['lockmode' => 'none', 'activitygroup' => $this->ticks([$quiz1, $quiz2])]);
+        $manager = new activitydates();
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $tabledata = $manager->get_table_data($settings, [$quiz1->cmid, $quiz2->cmid]);
+        // In none mode the table proposes no lock date (and posts none).
+        $values = $this->proposed_values($tabledata);
+        $this->assertNull($values[$quiz1->cmid]['timelock']);
+
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [], true, true, true);
+
+        $this->assertSame(0, $result['locks']);
+        $this->assertSame(2, $result['dates']);
+        $this->assertSame($existing, $this->locktime($course->id, 'quiz', $quiz1->id));
+        $this->assertSame($existing, $this->locktime($course->id, 'quiz', $quiz2->id));
+        // The lock configuration and selection are still saved.
+        $lock = $DB->get_record('tool_activitydates_lock', ['courseid' => $course->id], '*', MUST_EXIST);
+        $this->assertSame('none', $lock->lockmode);
+        $this->assertSame(2, $DB->count_records('tool_activitydates_lockitem', ['lockid' => $lock->id]));
+    }
+
+    /**
+     * Each part of a Save is written only with its capability, whatever the submission holds.
+     */
+    public function test_apply_respects_capabilities(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $manager = new activitydates();
+        $oldopen = strtotime('2029-06-01 09:00');
+        $oldclose = strtotime('2029-06-08 09:00');
+        $oldlock = strtotime('2029-07-01 09:00');
+
+        // A :managelocks-only user posting dates, hide and reset: no activity date or visibility changes.
+        [$course, [$quiz1, $quiz2]] = $this->graded_quizzes(2);
+        foreach ([$quiz1, $quiz2] as $quiz) {
+            $DB->update_record('quiz', (object) ['id' => $quiz->id, 'timeopen' => $oldopen, 'timeclose' => $oldclose]);
+        }
+        $fromform = $this->fromform([
+            'hideunselected' => 1,
+            'resetunselected' => 1,
+            'lockmode' => 'session',
+            'activitygroup' => $this->ticks([$quiz1]),
+        ]);
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $tabledata = $manager->get_table_data($settings, [$quiz1->cmid]);
+        $values = $this->proposed_values($tabledata);
+        $this->assertNotEquals($oldopen, $values[$quiz1->cmid]['timeopen']);
+
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [$quiz1->cmid], false, true, true);
+
+        $this->assertSame(0, $result['dates']);
+        foreach ([$quiz1, $quiz2] as $quiz) {
+            $record = $DB->get_record('quiz', ['id' => $quiz->id]);
+            $this->assertEquals($oldopen, $record->timeopen);
+            $this->assertEquals($oldclose, $record->timeclose);
+            $this->assertEquals(1, $DB->get_field('course_modules', 'visible', ['id' => $quiz->cmid]));
+        }
+        $this->assertFalse($DB->record_exists('tool_activitydates', ['courseid' => $course->id]));
+        $this->assertSame(0, $DB->count_records('tool_activitydates_cmids'));
+        // The lock part is written.
+        $this->assertSame(1, $result['locks']);
+        $this->assertSame(strtotime('2030-01-08 09:00'), $this->locktime($course->id, 'quiz', $quiz1->id));
+
+        // A :manage-only user posting lock dates, notes and the lock reset: no grade item or lock item changes.
+        [$course, [$quiz1, $quiz2]] = $this->graded_quizzes(2);
+        (new locks\manager())->apply_locks([$quiz2->cmid => $oldlock], 'quiz', $course->id, false);
+        $fromform = $this->fromform([
+            'lockmode' => 'session',
+            'lockresetunselected' => 1,
+            'activitygroup' => $this->ticks([$quiz1]),
+        ]);
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $tabledata = $manager->get_table_data($settings, [$quiz1->cmid]);
+        $values = $this->proposed_values($tabledata);
+        $this->assertSame(strtotime('2030-01-08 09:00'), $values[$quiz1->cmid]['timelock']);
+
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [$quiz1->cmid], true, false, true);
+
+        $this->assertSame(0, $result['locks']);
+        $this->assertSame(0, $this->locktime($course->id, 'quiz', $quiz1->id));
+        $this->assertSame($oldlock, $this->locktime($course->id, 'quiz', $quiz2->id));
+        $this->assertFalse($DB->record_exists('tool_activitydates_lock', ['courseid' => $course->id]));
+        // Only the first course's lock item exists.
+        $this->assertSame(1, $DB->count_records('tool_activitydates_lockitem'));
+        $this->assertFalse(
+            $DB->record_exists_select('tool_activitydates_lockitem', 'cmid IN (?, ?)', [$quiz1->cmid, $quiz2->cmid])
+        );
+        // The dates part is written.
+        $this->assertSame(1, $result['dates']);
+        $this->assertEquals(strtotime('2030-01-01 09:00'), $DB->get_field('quiz', 'timeopen', ['id' => $quiz1->id]));
+    }
+
+    /**
+     * A lock-only type (assign has no timeopen/timeclose) never gets date writes, even when
+     * the submission holds dates; its lock is written.
+     */
+    public function test_lock_only_type_ignores_date_inputs(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $assign1 = $generator->create_module('assign', ['course' => $course->id, 'duedate' => strtotime('2029-05-01 09:00')]);
+        $assign2 = $generator->create_module('assign', ['course' => $course->id]);
+        // The premise: assign has a duedate column (so a date write would change it) but no open/close.
+        $this->assertTrue(activitydates::has_duedate('assign'));
+        $this->assertFalse(modtypes::has_date_columns('assign'));
+        $before = $DB->get_records('assign', ['course' => $course->id]);
+
+        $fromform = $this->fromform([
+            'modtype' => 'assign',
+            'hideunselected' => 1,
+            'resetunselected' => 1,
+            'lockmode' => 'days',
+            'lockdays' => 3,
+            'activitygroup' => $this->ticks([$assign1]),
+        ]);
+        $manager = new activitydates();
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $tabledata = $manager->get_table_data($settings, [$assign1->cmid], false);
+        $lock = strtotime('2030-01-04 09:00');
+        $rows = array_values(array_filter($tabledata, fn($row) => !$row['isheader']));
+        $this->assertSame(['timeopen' => null, 'duedate' => null, 'timeclose' => null, 'timelock' => $lock], $rows[0]['proposed']);
+        $this->assertNull($rows[0]['duedate']);
+        $this->assertTrue($rows[0]['hasgradeitem']);
+
+        $forged = strtotime('2030-02-01 09:00');
+        $values = [$assign1->cmid => ['timeopen' => $forged, 'duedate' => $forged, 'timeclose' => $forged, 'timelock' => $lock]];
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [], true, true, false);
+
+        $this->assertSame(['dates' => 0, 'locks' => 1], $result);
+        $this->assertEquals($before, $DB->get_records('assign', ['course' => $course->id]));
+        $this->assertEquals(1, $DB->get_field('course_modules', 'visible', ['id' => $assign2->cmid]));
+        $this->assertSame($lock, $this->locktime($course->id, 'assign', $assign1->id));
+    }
+
+    /**
+     * Save writes each selected row's lock value (an empty one clears the lock) and
+     * the posted note ticks, and keeps the lock selection of other types.
+     */
+    public function test_save_writes_lock_and_notes(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$course, [$quiz1, $quiz2, $quiz3]] = $this->graded_quizzes(3);
+        $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $course->id]);
+        $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $assign->cmid, 'shownote' => 1]);
+        $lockmanager = new locks\manager();
+        $lockmanager->apply_locks([$quiz3->cmid => strtotime('2031-01-01 09:00')], 'quiz', $course->id, false);
+
+        $fromform = $this->fromform([
+            'lockmode' => 'session',
+            'shownote' => 0,
+            'shownotecoursepage' => 1,
+            'activitygroup' => $this->ticks([$quiz1, $quiz2, $quiz3]),
+        ]);
+        $manager = new activitydates();
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $tabledata = $manager->get_table_data($settings, [$quiz1->cmid, $quiz2->cmid, $quiz3->cmid]);
+        $values = $this->proposed_values($tabledata);
+        $this->assertSame(strtotime('2030-01-08 09:00'), $values[$quiz1->cmid]['timelock']);
+        $custom = strtotime('2030-02-01 10:00');
+        $values[$quiz2->cmid]['timelock'] = $custom;
+        $values[$quiz3->cmid]['timelock'] = 0;
+
+        $sink = $this->redirectEvents();
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [$quiz1->cmid], true, true, true);
+        $events = array_map(fn($event) => get_class($event), $sink->get_events());
+        $sink->close();
+
+        $this->assertSame(['dates' => 3, 'locks' => 3], $result);
+        $this->assertContains(event\dates_updated::class, $events);
+        $this->assertContains(event\locks_updated::class, $events);
+        $this->assertSame(strtotime('2030-01-08 09:00'), $this->locktime($course->id, 'quiz', $quiz1->id));
+        $this->assertSame($custom, $this->locktime($course->id, 'quiz', $quiz2->id));
+        $this->assertSame(0, $this->locktime($course->id, 'quiz', $quiz3->id));
+
+        $lock = $DB->get_record('tool_activitydates_lock', ['courseid' => $course->id], '*', MUST_EXIST);
+        $this->assertEquals($lockid, $lock->id);
+        $this->assertSame('session', $lock->lockmode);
+        $this->assertEquals(0, $lock->shownote);
+        $this->assertEquals(1, $lock->shownotecoursepage);
+        $this->assertEquals(0, $lock->resetunselected);
+        $notes = $DB->get_records_menu('tool_activitydates_lockitem', ['lockid' => $lockid], '', 'cmid, shownote');
+        $this->assertEquals([
+            $assign->cmid => 1,
+            $quiz1->cmid => 1,
+            $quiz2->cmid => 0,
+            $quiz3->cmid => 0,
+        ], $notes);
+
+        // The table shows the current lock state and the saved note settings.
+        $rows = array_values(array_filter(
+            $manager->get_table_data($settings, [$quiz1->cmid, $quiz2->cmid, $quiz3->cmid]),
+            fn($row) => !$row['isheader']
+        ));
+        $this->assertSame([strtotime('2030-01-08 09:00'), $custom, 0], array_column($rows, 'locktime'));
+        $this->assertSame([true, true, true], array_column($rows, 'hasgradeitem'));
+        $this->assertSame([true, false, false], array_column($rows, 'shownote'));
+    }
+
+    /**
+     * An unselected row's lock is cleared with the lock reset option, whatever the lock mode;
+     * a row without a grade item is skipped.
+     */
+    public function test_save_lock_reset_unselected(): void {
+        $this->resetAfterTest();
+        [$course, [$quiz1, $quiz2]] = $this->graded_quizzes(2);
+        // A quiz with grade 0 has no grade item.
+        $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 0]);
+        $existing = strtotime('2031-01-01 09:00');
+        (new locks\manager())->apply_locks([$quiz1->cmid => $existing, $quiz2->cmid => $existing], 'quiz', $course->id, false);
+
+        $fromform = $this->fromform([
+            'lockmode' => 'none',
+            'lockresetunselected' => 1,
+            'activitygroup' => $this->ticks([$quiz1]),
+        ]);
+        $manager = new activitydates();
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $tabledata = $manager->get_table_data($settings, [$quiz1->cmid]);
+        $rows = array_values(array_filter($tabledata, fn($row) => !$row['isheader']));
+        $this->assertSame([true, true, false], array_column($rows, 'hasgradeitem'));
+
+        $result = $manager->save($fromform, $course->id, $tabledata, $this->proposed_values($tabledata), [], false, true, true);
+
+        $this->assertSame(1, $result['locks']);
+        $this->assertSame($existing, $this->locktime($course->id, 'quiz', $quiz1->id));
+        $this->assertSame(0, $this->locktime($course->id, 'quiz', $quiz2->id));
+    }
+
+    /**
+     * settings_from_form() reads the lock fields when present, else the saved lock
+     * configuration, else the site defaults.
+     */
+    public function test_settings_from_form_lock_fields(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+
+        $settings = activitydates::settings_from_form($this->fromform(), $course->id, 0);
+        $this->assertSame(0, $settings->lockid);
+        $this->assertSame('none', $settings->lockmode);
+        $this->assertSame(7, $settings->lockdays);
+        $this->assertSame(0, $settings->lockdate);
+        $this->assertSame(1, $settings->shownote);
+        $this->assertSame(0, $settings->shownotecoursepage);
+        $this->assertSame(0, $settings->lockresetunselected);
+
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
+            'courseid' => $course->id,
+            'lockmode' => 'date',
+            'lockdays' => 4,
+            'lockdate' => 1900000000,
+            'shownote' => 0,
+            'shownotecoursepage' => 1,
+            'resetunselected' => 1,
+        ]);
+        $settings = activitydates::settings_from_form($this->fromform(), $course->id, 0);
+        $this->assertSame((int) $lockid, $settings->lockid);
+        $this->assertSame('date', $settings->lockmode);
+        $this->assertSame(4, $settings->lockdays);
+        $this->assertSame(1900000000, $settings->lockdate);
+        $this->assertSame(0, $settings->shownote);
+        $this->assertSame(1, $settings->shownotecoursepage);
+        $this->assertSame(1, $settings->lockresetunselected);
+
+        $settings = activitydates::settings_from_form($this->fromform([
+            'lockmode' => 'days',
+            'lockdays' => '9',
+            'lockdate' => '1900000060',
+            'shownote' => '1',
+            'shownotecoursepage' => '',
+            'lockresetunselected' => '0',
+        ]), $course->id, 0);
+        $this->assertSame('days', $settings->lockmode);
+        $this->assertSame(9, $settings->lockdays);
+        $this->assertSame(1900000060, $settings->lockdate);
+        $this->assertSame(1, $settings->shownote);
+        $this->assertSame(0, $settings->shownotecoursepage);
+        $this->assertSame(0, $settings->lockresetunselected);
+
+        // An unknown lock mode falls back to none.
+        $settings = activitydates::settings_from_form($this->fromform(['lockmode' => 'bogus']), $course->id, 0);
+        $this->assertSame('none', $settings->lockmode);
+    }
+
+    /**
+     * load_settings() merges the dates row, the lock row and the defaults, floored to the minute.
+     */
+    public function test_load_settings_merges_lock_config(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+
+        // Nothing saved: the defaults, finish off, lock mode none.
+        $settings = activitydates::load_settings($course->id, 'choice');
+        $this->assertSame(0, (int) $settings->id);
+        $this->assertSame('choice', $settings->modtype);
+        $this->assertSame(0, $settings->finishenabled);
+        $this->assertSame(0, $settings->lockid);
+        $this->assertSame('none', $settings->lockmode);
+        $this->assertSame(7, $settings->lockdays);
+        $this->assertSame(0, $settings->schedulestart % MINSECS);
+        $this->assertSame(0, $settings->lockdate % MINSECS);
+        $this->assertSame((int) $settings->schedulestart + 14 * DAYSECS, $settings->lockdate);
+
+        // Both rows saved.
+        [, $saved] = (new activitydates())->update($this->fromform([
+            'schedulestart' => strtotime('2030-01-01 09:00') + 42,
+            'closemode' => 'days',
+            'closedays' => 4,
+        ]), $course->id);
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
+            'courseid' => $course->id,
+            'lockmode' => 'date',
+            'lockdays' => 3,
+            'lockdate' => strtotime('2030-03-01 10:00') + 42,
+            'shownote' => 0,
+            'shownotecoursepage' => 1,
+            'resetunselected' => 1,
+        ]);
+        $settings = activitydates::load_settings($course->id, 'quiz');
+        $this->assertEquals($saved->id, $settings->id);
+        $this->assertSame('quiz', $settings->modtype);
+        $this->assertSame(strtotime('2030-01-01 09:00'), $settings->schedulestart);
+        $this->assertSame(1, $settings->finishenabled);
+        $this->assertSame(strtotime('2030-01-15 17:00'), $settings->schedulefinish);
+        $this->assertSame('days', $settings->closemode);
+        $this->assertSame(4, $settings->closedays);
+        $this->assertSame((int) $lockid, $settings->lockid);
+        $this->assertSame('date', $settings->lockmode);
+        $this->assertSame(3, $settings->lockdays);
+        $this->assertSame(strtotime('2030-03-01 10:00'), $settings->lockdate);
+        $this->assertSame(0, $settings->shownote);
+        $this->assertSame(1, $settings->shownotecoursepage);
+        $this->assertSame(1, $settings->lockresetunselected);
+
+        // An unset lock date defaults to the finish date.
+        $DB->set_field('tool_activitydates_lock', 'lockdate', 0, ['id' => $lockid]);
+        $this->assertSame(strtotime('2030-01-15 17:00'), activitydates::load_settings($course->id, 'quiz')->lockdate);
+    }
 }

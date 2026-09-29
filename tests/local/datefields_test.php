@@ -101,6 +101,7 @@ final class datefields_test extends \basic_testcase {
             self::row(11, '1969-12-31T23:00', '1969-12-31T22:30', '1969-12-31T22:00'),
             [11 => true],
             true,
+            false,
             $utc
         );
         $this->assertSame([], $values);
@@ -124,20 +125,24 @@ final class datefields_test extends \basic_testcase {
             self::row(11, '', '', '2030-01-10T09:00'),
             [11 => true],
             true,
+            false,
             self::tz()
         );
         $this->assertSame([], $errors);
-        $this->assertSame([11 => ['timeopen' => 0, 'duedate' => 0, 'timeclose' => self::ts('2030-01-10 09:00')]], $values);
+        $this->assertSame(
+            [11 => ['timeopen' => 0, 'duedate' => 0, 'timeclose' => self::ts('2030-01-10 09:00'), 'timelock' => null]],
+            $values
+        );
 
         // Every date empty, or every input missing, is a row with no dates set.
         foreach ([self::row(11, '', '', ''), []] as $inputs) {
-            [$values, $errors] = datefields::validate_dates($inputs, [11 => true], true, self::tz());
+            [$values, $errors] = datefields::validate_dates($inputs, [11 => true], true, false, self::tz());
             $this->assertSame([], $errors);
-            $this->assertSame([11 => ['timeopen' => 0, 'duedate' => 0, 'timeclose' => 0]], $values);
+            $this->assertSame([11 => ['timeopen' => 0, 'duedate' => 0, 'timeclose' => 0, 'timelock' => null]], $values);
         }
 
         // An unparseable open date is still an error.
-        [$values, $errors] = datefields::validate_dates(self::row(11, 'x', '', ''), [11 => true], true, self::tz());
+        [$values, $errors] = datefields::validate_dates(self::row(11, 'x', '', ''), [11 => true], true, false, self::tz());
         $this->assertSame([], $values);
         $this->assertSame([11 => ['timeopen' => 'errorinvaliddate']], $errors);
 
@@ -146,10 +151,14 @@ final class datefields_test extends \basic_testcase {
             self::row(11, '2030-01-07T09:00', '', ''),
             [11 => true],
             true,
+            false,
             self::tz()
         );
         $this->assertSame([], $errors);
-        $this->assertSame([11 => ['timeopen' => self::ts('2030-01-07 09:00'), 'duedate' => 0, 'timeclose' => 0]], $values);
+        $this->assertSame(
+            [11 => ['timeopen' => self::ts('2030-01-07 09:00'), 'duedate' => 0, 'timeclose' => 0, 'timelock' => null]],
+            $values
+        );
     }
 
     /**
@@ -161,12 +170,13 @@ final class datefields_test extends \basic_testcase {
 
         // Any due date up to close is valid, however early.
         foreach (['2001-01-01T00:00', '2030-01-10T09:00'] as $due) {
-            [$values, $errors] = datefields::validate_dates(self::row(11, '', $due, $close), $allowed, true, self::tz());
+            [$values, $errors] = datefields::validate_dates(self::row(11, '', $due, $close), $allowed, true, false, self::tz());
             $this->assertSame([], $errors, $due);
             $this->assertSame([11 => [
                 'timeopen' => 0,
                 'duedate' => datefields::from_input($due, self::tz()),
                 'timeclose' => self::ts('2030-01-10 09:00'),
+                'timelock' => null,
             ]], $values, $due);
         }
 
@@ -175,13 +185,20 @@ final class datefields_test extends \basic_testcase {
             self::row(11, '', '2030-01-10T09:01', $close),
             $allowed,
             true,
+            false,
             self::tz()
         );
         $this->assertSame([], $values);
         $this->assertSame([11 => ['duedate' => 'errordueafterclose']], $errors);
 
         // With close cleared too, a due date alone is valid.
-        [$values, $errors] = datefields::validate_dates(self::row(11, '', '2030-01-10T09:01', ''), $allowed, true, self::tz());
+        [$values, $errors] = datefields::validate_dates(
+            self::row(11, '', '2030-01-10T09:01', ''),
+            $allowed,
+            true,
+            false,
+            self::tz()
+        );
         $this->assertSame([], $errors);
         $this->assertSame(self::ts('2030-01-10 09:01'), $values[11]['duedate']);
     }
@@ -194,7 +211,7 @@ final class datefields_test extends \basic_testcase {
             'timeopen' => [11 => '2030-01-07T09:00', 12 => '2030-01-07T09:00', 13 => '2030-01-07T09:00'],
             'timeclose' => [11 => '2030-01-07T09:00', 12 => '2030-01-06T09:00', 13 => '2030-01-07T09:01'],
         ];
-        [$values, $errors] = datefields::validate_dates($inputs, [11 => true, 12 => true, 13 => true], false, self::tz());
+        [$values, $errors] = datefields::validate_dates($inputs, [11 => true, 12 => true, 13 => true], false, false, self::tz());
 
         $this->assertSame([
             11 => ['timeclose' => 'errorclosebeforeopen'],
@@ -207,6 +224,7 @@ final class datefields_test extends \basic_testcase {
         [, $errors] = datefields::validate_dates(
             self::row(11, '2030-01-07T09:00', '', 'nonsense'),
             [11 => true],
+            false,
             false,
             self::tz()
         );
@@ -225,6 +243,7 @@ final class datefields_test extends \basic_testcase {
             self::row(11, $open, '2030-01-10T09:00', '2030-01-10T09:00'),
             $allowed,
             true,
+            false,
             self::tz()
         );
         $this->assertSame([], $errors);
@@ -235,6 +254,7 @@ final class datefields_test extends \basic_testcase {
             self::row(11, $open, $open, '2030-01-10T09:00'),
             $allowed,
             true,
+            false,
             self::tz()
         );
         $this->assertSame([11 => ['duedate' => 'errorduebeforeopen']], $errors);
@@ -245,6 +265,7 @@ final class datefields_test extends \basic_testcase {
             self::row(11, $open, '2030-01-10T09:01', '2030-01-10T09:00'),
             $allowed,
             true,
+            false,
             self::tz()
         );
         $this->assertSame([11 => ['duedate' => 'errordueafterclose']], $errors);
@@ -255,16 +276,17 @@ final class datefields_test extends \basic_testcase {
             self::row(11, $open, '2031-06-01T09:00', ''),
             $allowed,
             true,
+            false,
             self::tz()
         );
         $this->assertSame([], $errors);
         $this->assertSame(['timeopen' => self::ts('2030-01-07 09:00'), 'duedate' => self::ts('2031-06-01 09:00'),
-            'timeclose' => 0], $values[11]);
-        [, $errors] = datefields::validate_dates(self::row(11, $open, '2030-01-06T09:00', ''), $allowed, true, self::tz());
+            'timeclose' => 0, 'timelock' => null], $values[11]);
+        [, $errors] = datefields::validate_dates(self::row(11, $open, '2030-01-06T09:00', ''), $allowed, true, false, self::tz());
         $this->assertSame([11 => ['duedate' => 'errorduebeforeopen']], $errors);
 
         // An unparseable due date.
-        [, $errors] = datefields::validate_dates(self::row(11, $open, 'x', ''), $allowed, true, self::tz());
+        [, $errors] = datefields::validate_dates(self::row(11, $open, 'x', ''), $allowed, true, false, self::tz());
         $this->assertSame([11 => ['duedate' => 'errorinvaliddate']], $errors);
     }
 
@@ -276,6 +298,7 @@ final class datefields_test extends \basic_testcase {
             self::row(11, '2030-01-07T09:00', 'garbage', '2030-01-10T09:00'),
             [11 => true],
             false,
+            false,
             self::tz()
         );
         $this->assertSame([], $errors);
@@ -283,6 +306,7 @@ final class datefields_test extends \basic_testcase {
             'timeopen' => self::ts('2030-01-07 09:00'),
             'duedate' => null,
             'timeclose' => self::ts('2030-01-10 09:00'),
+            'timelock' => null,
         ]], $values);
     }
 
@@ -295,7 +319,7 @@ final class datefields_test extends \basic_testcase {
             'duedate' => [999 => ''],
             'timeclose' => [11 => '', 999 => '', 998 => 'x'],
         ];
-        [$values, $errors] = datefields::validate_dates($inputs, [11 => true], true, self::tz());
+        [$values, $errors] = datefields::validate_dates($inputs, [11 => true], true, false, self::tz());
         $this->assertSame([11], array_keys($values));
         $this->assertSame([], $errors);
 
@@ -329,6 +353,33 @@ final class datefields_test extends \basic_testcase {
     }
 
     /**
+     * The table's lock date is parsed only with $haslocks: empty is 0 (clear), a past date is allowed,
+     * garbage is an error, and it has no ordering rule against the other dates.
+     */
+    public function test_timelock_parsed_only_with_locks(): void {
+        $inputs = self::row(11, '2030-01-07T09:00', '', '2030-01-10T09:00');
+        $inputs['timelock'] = [11 => '2001-01-01T00:00'];
+
+        [$values, $errors] = datefields::validate_dates($inputs, [11 => true], false, false, self::tz());
+        $this->assertSame([], $errors);
+        $this->assertNull($values[11]['timelock']);
+
+        [$values, $errors] = datefields::validate_dates($inputs, [11 => true], false, true, self::tz());
+        $this->assertSame([], $errors);
+        $this->assertSame(self::ts('2001-01-01 00:00'), $values[11]['timelock']);
+
+        $inputs['timelock'] = [11 => ''];
+        [$values] = datefields::validate_dates($inputs, [11 => true, 12 => true], false, true, self::tz());
+        $this->assertSame(0, $values[11]['timelock']);
+        $this->assertSame(0, $values[12]['timelock']);
+
+        $inputs['timelock'] = [11 => 'x'];
+        [$values, $errors] = datefields::validate_dates($inputs, [11 => true], false, true, self::tz());
+        $this->assertSame([], $values);
+        $this->assertSame([11 => ['timelock' => 'errorinvaliddate']], $errors);
+    }
+
+    /**
      * Values are read in the given (user) timezone.
      */
     public function test_user_timezone(): void {
@@ -341,7 +392,7 @@ final class datefields_test extends \basic_testcase {
         $this->assertSame('2030-01-01T01:00', datefields::to_input($inperth, self::tz()));
         $this->assertSame('2030-01-01T09:00', datefields::to_input($inperth, $perth));
 
-        [$values] = datefields::validate_dates(self::row(11, '2030-01-01T09:00', '', ''), [11 => true], false, $perth);
+        [$values] = datefields::validate_dates(self::row(11, '2030-01-01T09:00', '', ''), [11 => true], false, false, $perth);
         $this->assertSame($inperth, $values[11]['timeopen']);
     }
 }
