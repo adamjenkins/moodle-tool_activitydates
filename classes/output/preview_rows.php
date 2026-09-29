@@ -239,7 +239,6 @@ final class preview_rows {
                 'shownote' => $shownote,
                 'shownotecoursepage' => $shownotecoursepage,
                 'notedisabled' => !$selected,
-                // The ticks modform.js gives an unselected row without a saved note once it is selected.
                 'hasnotedefault' => !$selected && isset($row['notedefaults']),
                 'defaultnote' => !empty($row['notedefaults']['shownote']),
                 'defaultcoursenote' => !empty($row['notedefaults']['shownotecoursepage']),
