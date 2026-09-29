@@ -129,7 +129,8 @@ final class preview_rows {
      * A Fix checkbox is editable on a selected row for a field the user may fix
      * ($options['fixable']). Rows also get their grade-lock note ticks (posted
      * ones on selected rows when given, else the saved ones), whether those are
-     * editable (selected rows), and their status text.
+     * editable (selected rows), the site-default ticks an unselected row without a
+     * saved note gets once selected, and their status text.
      *
      * @param array $tabledata rows from activitydates::get_table_data().
      * @param \DateTimeZone $tz the user's timezone.
@@ -238,6 +239,10 @@ final class preview_rows {
                 'shownote' => $shownote,
                 'shownotecoursepage' => $shownotecoursepage,
                 'notedisabled' => !$selected,
+                // The ticks modform.js gives an unselected row without a saved note once it is selected.
+                'hasnotedefault' => !$selected && isset($row['notedefaults']),
+                'defaultnote' => !empty($row['notedefaults']['shownote']),
+                'defaultcoursenote' => !empty($row['notedefaults']['shownotecoursepage']),
             ];
         }
         return $rows;

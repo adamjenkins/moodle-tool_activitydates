@@ -261,6 +261,25 @@ final class preview_rows_test extends \advanced_testcase {
         $this->assertSame([true, true, false], array_column(array_slice($rows, 1), 'shownotecoursepage'));
     }
 
+    /**
+     * An unselected row without a saved note item carries the site defaults for the
+     * page to tick when the row is selected; other rows carry none.
+     */
+    public function test_note_defaults(): void {
+        $tz = new \DateTimeZone('Europe/London');
+        $table = $this->table();
+        $table[2]['notedefaults'] = ['shownote' => true, 'shownotecoursepage' => false];
+        $table[3]['notedefaults'] = ['shownote' => true, 'shownotecoursepage' => true];
+
+        $rows = array_slice(preview_rows::dates($table, $tz, $this->options()), 1);
+
+        $this->assertSame([false, true, false], array_column($rows, 'hasnotedefault'));
+        $this->assertTrue($rows[1]['defaultnote']);
+        $this->assertFalse($rows[1]['defaultcoursenote']);
+        // The unselected row itself shows no note.
+        $this->assertFalse($rows[1]['shownote']);
+    }
+
     public function test_engine_fixed(): void {
         $tz = new \DateTimeZone('Europe/London');
         $table = $this->table();

@@ -74,6 +74,9 @@
       * shownote bool - whether the activity-page note is ticked
       * shownotecoursepage bool - whether the course-page note is ticked
       * notedisabled bool - whether the note checkboxes are disabled (unselected rows)
+      * hasnotedefault bool - whether the row's note checkboxes take the site defaults once it is selected
+      * defaultnote bool - the site default of the activity-page note
+      * defaultcoursenote bool - the site default of the course-page note
 
     Example context (json):
     {
@@ -122,7 +125,10 @@
                 ],
                 "shownote": true,
                 "shownotecoursepage": false,
-                "notedisabled": false
+                "notedisabled": false,
+                "hasnotedefault": false,
+                "defaultnote": true,
+                "defaultcoursenote": false
             },
             {
                 "isheader": false,
@@ -246,6 +252,7 @@
                                         <div class="form-check">
                                             <input type="checkbox" class="form-check-input" name="shownote_cmids[]" value="{{id}}" form="{{formid}}"
                                                 id="id_shownote_{{id}}" data-rowcontrol="{{id}}"
+                                                {{#hasnotedefault}}data-defaultchecked="{{#defaultnote}}1{{/defaultnote}}{{^defaultnote}}0{{/defaultnote}}"{{/hasnotedefault}}
                                                 {{#shownote}}checked{{/shownote}}{{#notedisabled}} disabled{{/notedisabled}}>
                                             <label class="form-check-label" for="id_shownote_{{id}}">
                                                 {{#str}}noteactivitypage, tool_activitydates{{/str}}
@@ -255,6 +262,7 @@
                                         <div class="form-check">
                                             <input type="checkbox" class="form-check-input" name="shownotecourse_cmids[]" value="{{id}}" form="{{formid}}"
                                                 id="id_shownotecourse_{{id}}" data-rowcontrol="{{id}}"
+                                                {{#hasnotedefault}}data-defaultchecked="{{#defaultcoursenote}}1{{/defaultcoursenote}}{{^defaultcoursenote}}0{{/defaultcoursenote}}"{{/hasnotedefault}}
                                                 {{#shownotecoursepage}}checked{{/shownotecoursepage}}{{#notedisabled}} disabled{{/notedisabled}}>
                                             <label class="form-check-label" for="id_shownotecourse_{{id}}">
                                                 {{#str}}notecoursepage, tool_activitydates{{/str}}

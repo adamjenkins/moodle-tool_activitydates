@@ -60,6 +60,8 @@ export const init = () => {
     /**
      * Enable a row's Fix and note checkboxes only while the row is selected. Their
      * values are saved for selected rows only, and a disabled checkbox is not posted.
+     * A note checkbox of a row without a saved note takes the site default the first
+     * time the row is selected.
      *
      * @param {string} cmid the course module id.
      * @param {boolean} selected whether the row is selected.
@@ -67,6 +69,10 @@ export const init = () => {
     const setRowControls = (cmid, selected) => {
         document.querySelectorAll('[data-rowcontrol="' + cmid + '"]').forEach(control => {
             control.disabled = !selected;
+            if (selected && control.dataset.defaultchecked !== undefined) {
+                control.checked = control.dataset.defaultchecked === '1';
+                delete control.dataset.defaultchecked;
+            }
         });
     };
 

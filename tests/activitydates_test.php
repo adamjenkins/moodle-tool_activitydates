@@ -1682,6 +1682,14 @@ final class activitydates_test extends \advanced_testcase {
         $rows = $datarows();
         $this->assertSame([false, false, false], array_column($rows, 'shownote'));
         $this->assertSame([true, true, true], array_column($rows, 'shownotecoursepage'));
+        // An unselected row without a saved item has no note: unticked, with the site
+        // defaults kept for when it is selected.
+        $rows = array_values(array_filter($manager->get_table_data($settings, [$quiz1->cmid]), fn($row) => !$row['isheader']));
+        $this->assertSame([true, false, false], array_column($rows, 'shownotecoursepage'));
+        $this->assertSame(
+            [null, ['shownote' => false, 'shownotecoursepage' => true], ['shownote' => false, 'shownotecoursepage' => true]],
+            array_column($rows, 'notedefaults')
+        );
 
         $tabledata = $manager->get_table_data($settings, $all);
         $manager->save(
@@ -1706,6 +1714,7 @@ final class activitydates_test extends \advanced_testcase {
         $rows = $datarows();
         $this->assertSame([true, true, false], array_column($rows, 'shownote'));
         $this->assertSame([false, true, true], array_column($rows, 'shownotecoursepage'));
+        $this->assertSame([null, null, null], array_column($rows, 'notedefaults'));
         // The course page shows only the note of an item with both ticks.
         $this->assertTrue(locks\local\locknote::shows_note((int) $quiz1->cmid, false));
         $this->assertFalse(locks\local\locknote::shows_note((int) $quiz1->cmid, true));

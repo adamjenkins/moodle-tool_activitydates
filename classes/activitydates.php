@@ -670,7 +670,7 @@ class activitydates {
             $fixed
         );
 
-        // A saved lock note setting wins over the site default for new selections.
+        // A saved lock note setting wins over the site default for selected rows.
         $savednotes = [];
         $lockid = $DB->get_field('tool_activitydates_lock', 'id', ['courseid' => $courseid]);
         if ($lockid) {
@@ -757,8 +757,15 @@ class activitydates {
                         ? '' : userdate($instance->timeclose, self::DATETIMEATTRFORMAT, 99, false, false),
                     'locktime' => $current[$cm->id]['timelock'],
                     'hasgradeitem' => $lockmanager->has_grade_item($courseid, $cm),
-                    'shownote' => $note ? (bool) $note->shownote : $defaultnote,
-                    'shownotecoursepage' => $note ? (bool) $note->shownotecoursepage : $defaultcoursenote,
+                    // Without a saved item, a selected row shows the site defaults (what Save
+                    // stores), and an unselected row has no note: its ticks are the defaults
+                    // only once it is selected (modform.js).
+                    'shownote' => $note ? (bool) $note->shownote : $isselected && $defaultnote,
+                    'shownotecoursepage' => $note ? (bool) $note->shownotecoursepage : $isselected && $defaultcoursenote,
+                    'notedefaults' => $note || $isselected ? null : [
+                        'shownote' => $defaultnote,
+                        'shownotecoursepage' => $defaultcoursenote,
+                    ],
                 ];
             }
         }
