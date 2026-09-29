@@ -96,7 +96,6 @@ $string['positiveintrequired'] = 'Must be a positive whole number';
 $string['preview'] = 'Preview';
 $string['privacy:metadata'] = 'The Activity dates admin tool only stores course-level configuration (schedule and session settings for activity dates and grade locks) and does not store any personal user data.';
 $string['questioncount'] = 'Question count';
-$string['refresh'] = 'Refresh';
 $string['resetunselected'] = 'Reset unselected';
 $string['resetunselected_help'] = 'Clear the open and close dates of any activity that is not selected.';
 $string['rowstatus_hidden'] = 'Will be hidden';

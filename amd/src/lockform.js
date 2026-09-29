@@ -15,7 +15,7 @@
 
 /**
  * Select-all / toggle-all-notes helpers for the activity table, and an
- * auto-refresh when the activity type is changed.
+ * automatic Preview when the activity type is changed.
  *
  * @module     tool_activitydates/lockform
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -42,15 +42,15 @@ export const init = () => {
         });
     }
 
-    // Re-submit the form when the activity type changes, so the table and
-    // schedule fields refresh for the newly chosen type. The "Refresh" submit
-    // button is the no-JS fallback this mirrors. The form adds the group with
-    // appendName off, so the elements keep their own ids (id_modtype, id_refresh).
+    // Preview when the activity type changes, so the table and schedule fields
+    // are recalculated for the newly chosen type. The Preview submit button is
+    // the no-JS fallback this mirrors. The form adds the group with appendName
+    // off, so the elements keep their own ids (id_modtype, id_preview).
     const modtypeSelect = document.getElementById('id_modtype');
-    const refreshButton = document.getElementById('id_refresh');
-    if (modtypeSelect && refreshButton) {
+    const previewButton = document.getElementById('id_preview');
+    if (modtypeSelect && previewButton) {
         modtypeSelect.addEventListener('change', () => {
-            refreshButton.click();
+            previewButton.click();
         });
     }
 };

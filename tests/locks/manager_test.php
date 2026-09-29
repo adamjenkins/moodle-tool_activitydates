@@ -228,7 +228,7 @@ final class manager_test extends \advanced_testcase {
 
         foreach ($rows as $row) {
             $this->assertSame(
-                ['cmid', 'name', 'gradeitemids', 'locktime', 'selected', 'shownote'],
+                ['cmid', 'name', 'gradeitemids', 'locktime', 'selected', 'shownote', 'proposed'],
                 array_keys($row)
             );
         }
@@ -427,5 +427,102 @@ final class manager_test extends \advanced_testcase {
         );
 
         $this->assertSame(1, $count);
+    }
+
+    /**
+     * A selection passed to get_table_data() must win over the saved one.
+     */
+    public function test_get_table_data_selection_override(): void {
+        $this->resetAfterTest();
+        [$course, , , $cm1, $cm2] = $this->create_two_quizzes();
+
+        $mgr = new manager();
+        $settings = $mgr->update($this->lock_formdata([$cm1], []), $course->id);
+
+        $saved = $mgr->get_table_data($settings);
+        $this->assertSame([true, false], array_column($saved, 'selected'));
+
+        $overridden = $mgr->get_table_data($settings, [(int) $cm2]);
+        $this->assertSame([false, true], array_column($overridden, 'selected'));
+
+        $none = $mgr->get_table_data($settings, []);
+        $this->assertSame([false, false], array_column($none, 'selected'));
+    }
+
+    /**
+     * Each selected row proposes compute_lockdates()'s date for the selected
+     * rows in table order; unselected rows propose 0.
+     */
+    public function test_proposed_lock_dates(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $cmids = [];
+        for ($i = 0; $i < 4; $i++) {
+            $quiz = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
+            $cmids[] = (int) $quiz->cmid;
+        }
+        $mgr = new manager();
+        $settings = (object) [
+            'id' => 0,
+            'courseid' => $course->id,
+            'modtype' => 'quiz',
+            'schedulestart' => 2000000000,
+            'sessionlength' => 7,
+            'activitiespersession' => 2,
+            'shownote' => 0,
+        ];
+
+        // Select the first, third and fourth: the unselected second row must not
+        // take a place in the session grouping.
+        $selected = [$cmids[3], $cmids[0], $cmids[2]];
+        $rows = $mgr->get_table_data($settings, $selected);
+
+        $expected = $mgr->compute_lockdates([$cmids[0], $cmids[2], $cmids[3]], 2000000000, 7, 2);
+        $this->assertSame($cmids, array_map('intval', array_column($rows, 'cmid')));
+        $this->assertSame($expected[$cmids[0]], $rows[0]['proposed']);
+        $this->assertSame(0, $rows[1]['proposed']);
+        $this->assertSame($expected[$cmids[2]], $rows[2]['proposed']);
+        $this->assertSame($expected[$cmids[3]], $rows[3]['proposed']);
+        // The first two selected rows share session 1; the third is in session 2.
+        $this->assertSame(2000000000 + 7 * DAYSECS, $rows[2]['proposed']);
+        $this->assertSame(2000000000 + 14 * DAYSECS, $rows[3]['proposed']);
+    }
+
+    /**
+     * settings_from_form() casts the submitted values without persisting them,
+     * and update() persists exactly what it computed.
+     */
+    public function test_settings_from_form_casts(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$course] = $this->create_two_quizzes();
+        $mgr = new manager();
+
+        $fromform = (object) [
+            'modtype' => 'quiz',
+            'schedulestart' => '2000000000',
+            'sessionlength' => '7',
+            'activitiespersession' => '3',
+            'shownote' => '1',
+            'shownotecoursepage' => '',
+            'resetunselected' => '0',
+        ];
+        $settings = $mgr->settings_from_form($fromform, (int) $course->id);
+
+        $this->assertFalse($DB->record_exists('tool_activitydates_lock', ['courseid' => $course->id]));
+        $this->assertSame((int) $course->id, $settings->courseid);
+        $this->assertSame('quiz', $settings->modtype);
+        $this->assertSame(2000000000, $settings->schedulestart);
+        $this->assertSame(7, $settings->sessionlength);
+        $this->assertSame(3, $settings->activitiespersession);
+        $this->assertSame(1, $settings->shownote);
+        $this->assertSame(0, $settings->shownotecoursepage);
+        $this->assertSame(0, $settings->resetunselected);
+
+        $saved = $mgr->update($fromform, (int) $course->id);
+        $row = $DB->get_record('tool_activitydates_lock', ['id' => $saved->id]);
+        foreach ((array) $settings as $field => $value) {
+            $this->assertEquals($value, $row->$field, $field);
+        }
     }
 }

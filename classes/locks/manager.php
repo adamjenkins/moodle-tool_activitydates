@@ -120,6 +120,30 @@ class manager {
     }
 
     /**
+     * Build the lock settings from submitted form data, without persisting them.
+     *
+     * The id is not set: the caller adds the saved row's id when it needs one.
+     *
+     * @param stdClass $fromform Submitted form data: modtype, schedulestart,
+     *                           sessionlength, activitiespersession, shownote,
+     *                           shownotecoursepage, resetunselected.
+     * @param int $courseid The course ID.
+     * @return stdClass The settings (tool_activitydates_lock row shape, no id or timemodified).
+     */
+    public function settings_from_form(stdClass $fromform, int $courseid): stdClass {
+        return (object) [
+            'courseid' => $courseid,
+            'modtype' => (string) $fromform->modtype,
+            'schedulestart' => (int) $fromform->schedulestart,
+            'sessionlength' => (int) $fromform->sessionlength,
+            'activitiespersession' => (int) $fromform->activitiespersession,
+            'shownote' => !empty($fromform->shownote) ? 1 : 0,
+            'shownotecoursepage' => !empty($fromform->shownotecoursepage) ? 1 : 0,
+            'resetunselected' => !empty($fromform->resetunselected) ? 1 : 0,
+        ];
+    }
+
+    /**
      * Upsert the course's tool_activitydates_lock configuration row and rebuild its
      * tool_activitydates_lockitem rows from the submitted selections.
      *
@@ -139,13 +163,9 @@ class manager {
             $settings->courseid = $courseid;
         }
 
-        $settings->modtype = $formdata->modtype;
-        $settings->schedulestart = (int) $formdata->schedulestart;
-        $settings->sessionlength = (int) $formdata->sessionlength;
-        $settings->activitiespersession = (int) $formdata->activitiespersession;
-        $settings->shownote = !empty($formdata->shownote) ? 1 : 0;
-        $settings->shownotecoursepage = !empty($formdata->shownotecoursepage) ? 1 : 0;
-        $settings->resetunselected = !empty($formdata->resetunselected) ? 1 : 0;
+        foreach ((array) $this->settings_from_form($formdata, $courseid) as $field => $value) {
+            $settings->$field = $value;
+        }
         $settings->timemodified = time();
 
         // Only cmids that actually belong to this course and modtype may be persisted, otherwise
@@ -187,12 +207,16 @@ class manager {
     /**
      * Build the ordered activity table for the settings' modtype, in course-page
      * order (activities in a subsection appear where the subsection sits),
-     * describing each activity's current lock state and selection.
+     * describing each activity's current lock state and selection, and the
+     * lock date proposed for each selected activity.
      *
-     * @param stdClass $settings A tool_activitydates_lock settings row (courseid, modtype, shownote, id if saved).
-     * @return array Ordered list of rows: [cmid, name, gradeitemids[], locktime, selected, shownote].
+     * @param stdClass $settings A tool_activitydates_lock settings row (courseid, modtype, shownote,
+     *                           schedulestart, sessionlength, activitiespersession, id if saved).
+     * @param array|null $selectedcmids The selected cmids, overriding the saved selection; null uses the saved one.
+     * @return array Ordered list of rows: [cmid, name, gradeitemids[], locktime, selected, shownote, proposed].
+     *               proposed is compute_lockdates()'s date over the selected rows in table order, 0 if unselected.
      */
-    public function get_table_data(stdClass $settings): array {
+    public function get_table_data(stdClass $settings, ?array $selectedcmids = null): array {
         global $CFG, $DB;
         require_once($CFG->libdir . '/gradelib.php');
 
@@ -206,6 +230,8 @@ class manager {
                 $existingitems[$record->cmid] = $record;
             }
         }
+
+        $override = $selectedcmids === null ? [] : array_flip(array_map('intval', $selectedcmids));
 
         $modinfo = get_fast_modinfo($courseid);
         $rows = [];
@@ -231,8 +257,11 @@ class manager {
             // so this can be a past date.
             $locktime = $locktimes ? min($locktimes) : 0;
 
-            $selected = array_key_exists($cm->id, $existingitems);
-            $shownote = $selected
+            $selected = $selectedcmids === null
+                ? array_key_exists($cm->id, $existingitems)
+                : array_key_exists((int) $cm->id, $override);
+            // A saved item keeps its own note setting; any other row takes the course default.
+            $shownote = $selected && isset($existingitems[$cm->id])
                 ? (bool) $existingitems[$cm->id]->shownote
                 : (bool) ($settings->shownote ?? false);
 
@@ -243,7 +272,19 @@ class manager {
                 'locktime' => $locktime,
                 'selected' => $selected,
                 'shownote' => $shownote,
+                'proposed' => 0,
             ];
+        }
+
+        $selectedrows = array_filter($rows, fn($row) => $row['selected']);
+        $proposed = $this->compute_lockdates(
+            array_column($selectedrows, 'cmid'),
+            (int) ($settings->schedulestart ?? 0),
+            (int) ($settings->sessionlength ?? 0),
+            (int) ($settings->activitiespersession ?? 0)
+        );
+        foreach (array_keys($selectedrows) as $index) {
+            $rows[$index]['proposed'] = $proposed[$rows[$index]['cmid']];
         }
 
         return $rows;

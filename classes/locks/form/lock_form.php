@@ -73,11 +73,12 @@ class lock_form extends \moodleform {
         );
         $mform->setExpanded('lockheader');
 
-        // Module type selector plus a refresh button to re-display the form for
-        // the chosen type; the lockform AMD module also auto-submits on change.
+        // Module type selector plus a Preview button that recalculates the table
+        // from the submitted settings without saving; the lockform AMD module
+        // presses it when the type changes.
         $group = [];
         $group[] = $mform->createElement('select', 'modtype', get_string('activitytype', 'tool_activitydates'), $modules);
-        $group[] = $mform->createElement('submit', 'refresh', get_string('refresh', 'tool_activitydates'));
+        $group[] = $mform->createElement('submit', 'preview', get_string('preview', 'tool_activitydates'));
         $mform->addGroup($group, 'modtypegroup', get_string('activitytype', 'tool_activitydates'), [' '], false);
         $mform->setDefault('modtype', $modtype);
 

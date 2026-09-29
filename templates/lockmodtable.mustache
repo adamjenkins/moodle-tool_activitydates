@@ -18,33 +18,43 @@
     @template tool_activitydates/lockmodtable
 
     Table of a course's activities of one module type, in course order, with
-    their current gradebook lock date and their selection/note state.
+    their current gradebook lock date, an editable lock date for each selected
+    activity, and their selection/note state.
 
-    The select and show-note checkboxes are rendered here, outside the page's
-    moodleform, but carry a form="" attribute pointing at that form's id so
-    they still submit together with it (see classes/locks/form/lock_form.php).
+    The select, show-note and lock date inputs are rendered here, outside the
+    page's moodleform, but carry a form="" attribute pointing at that form's id
+    so they still submit together with it (see classes/locks/form/lock_form.php).
+    The hidden fingerprint lets the page refuse a Save whose table was built
+    from other settings.
 
     Classes required for JS:
     * none
 
     Data attributes required for JS:
-    * none
+    * data-region="tool_activitydates-previewtable" with data-formid - the table wrapper
+    * data-region="tool_activitydates-stale" - the stale-table bar
+    * data-cmid and data-field on each lock date input and its hint
 
     Context variables required for this template:
-    * formid string - the id of the moodleform these checkboxes submit with
+    * formid string - the id of the moodleform these inputs submit with
+    * fingerprint string - the fingerprint of the settings the table was built from
     * modname string - the module type name (e.g. quiz), used in the activity links
     * tabledata array - list of activity rows, in course order
       * cmid int - the course module id
       * name string - the activity name
-      * selected bool - whether the activity is currently selected
+      * selected bool - whether the activity is selected (and so has an editable lock date)
       * shownote bool - whether the student-facing lock note is enabled for this activity
       * haslocktime bool - whether a pending gradebook lock date exists
       * lockdateattr string - the pending lock date for the time element's datetime attribute
       * lockmessage string - localised "Locks {date}" message, present when haslocktime is true
+      * locktimevalue string - the lock date input's value, YYYY-MM-DDTHH:MM or ''
+      * locktimeinvalid bool - whether the lock date input failed validation
+      * locktimeerror string - the validation message for the lock date input
 
     Example context (json):
     {
         "formid": "tool_activitydates_lock_form",
+        "fingerprint": "0123456789abcdef0123456789abcdef01234567",
         "modname": "quiz",
         "tabledata": [
             {
@@ -54,63 +64,107 @@
                 "shownote": false,
                 "haslocktime": true,
                 "lockdateattr": "2026-08-05T10:00",
-                "lockmessage": "Locks Wed 05 Aug 2026, 10:00"
+                "lockmessage": "Locks Wed 05 Aug 2026, 10:00",
+                "locktimevalue": "2026-08-12T10:00",
+                "locktimeinvalid": false,
+                "locktimeerror": ""
+            },
+            {
+                "cmid": 57,
+                "name": "Quiz 2",
+                "selected": true,
+                "shownote": true,
+                "haslocktime": false,
+                "lockdateattr": "",
+                "lockmessage": "",
+                "locktimevalue": "",
+                "locktimeinvalid": true,
+                "locktimeerror": "Enter a lock date."
+            },
+            {
+                "cmid": 58,
+                "name": "Quiz 3",
+                "selected": false,
+                "shownote": false,
+                "haslocktime": false,
+                "lockdateattr": "",
+                "lockmessage": "",
+                "locktimevalue": "",
+                "locktimeinvalid": false,
+                "locktimeerror": ""
             }
         ]
     }
 }}
-<div class="card">
-    <div class="table-responsive">
-        <table class="table table-hover table-bordered table-striped">
-            <thead>
-                <tr>
-                    <th scope="col">
-                        <input type="checkbox" id="id_selectall"
-                            aria-label="{{#str}}toggleselection, tool_activitydates{{/str}}"
-                            title="{{#str}}toggleselection, tool_activitydates{{/str}}">
-                    </th>
-                    <th scope="col">{{#str}}name{{/str}}</th>
-                    <th scope="col">{{#str}}locktimecolumn, tool_activitydates{{/str}}</th>
-                    <th scope="col">
-                        <input type="checkbox" id="id_togglenotes"
-                            aria-label="{{#str}}togglenotes, tool_activitydates{{/str}}"
-                            title="{{#str}}togglenotes, tool_activitydates{{/str}}">
-                        {{#str}}shownote, tool_activitydates{{/str}}
-                    </th>
-                </tr>
-            </thead>
-            <tbody>
-                {{^tabledata}}
+<div data-region="tool_activitydates-previewtable" data-formid="{{formid}}">
+    <input type="hidden" name="tablefingerprint" form="{{formid}}" value="{{fingerprint}}">
+    <div data-region="tool_activitydates-stale" class="alert alert-warning" role="status" hidden>{{#str}}tablestale, tool_activitydates{{/str}}</div>
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered table-striped">
+                <thead>
                     <tr>
-                        <td colspan="4">{{#str}}nogradableactivities, tool_activitydates{{/str}}</td>
+                        <th scope="col">
+                            <input type="checkbox" id="id_selectall"
+                                aria-label="{{#str}}toggleselection, tool_activitydates{{/str}}"
+                                title="{{#str}}toggleselection, tool_activitydates{{/str}}">
+                        </th>
+                        <th scope="col">{{#str}}name{{/str}}</th>
+                        <th scope="col">{{#str}}locktimecolumn, tool_activitydates{{/str}}</th>
+                        <th scope="col">{{#str}}lockdate, tool_activitydates{{/str}}</th>
+                        <th scope="col">
+                            <input type="checkbox" id="id_togglenotes"
+                                aria-label="{{#str}}togglenotes, tool_activitydates{{/str}}"
+                                title="{{#str}}togglenotes, tool_activitydates{{/str}}">
+                            {{#str}}shownote, tool_activitydates{{/str}}
+                        </th>
                     </tr>
-                {{/tabledata}}
-                {{#tabledata}}
-                    <tr>
-                        <td>
-                            <input type="checkbox" name="cmids[]" value="{{cmid}}" form="{{formid}}"
-                                id="id_cmid_{{cmid}}"
-                                aria-label="{{#str}}selectactivity, tool_activitydates, {{name}}{{/str}}"
-                                {{#selected}}checked{{/selected}}>
-                        </td>
-                        <td><a href="{{config.wwwroot}}/mod/{{modname}}/view.php?id={{cmid}}">{{name}}</a></td>
-                        <td>
-                            {{#haslocktime}}
-                                <time datetime="{{lockdateattr}}">{{lockmessage}}</time>
-                            {{/haslocktime}}
-                            {{^haslocktime}}
-                                {{#str}}nolockscheduled, tool_activitydates{{/str}}
-                            {{/haslocktime}}
-                        </td>
-                        <td>
-                            <input type="checkbox" name="shownote_cmids[]" value="{{cmid}}" form="{{formid}}"
-                                id="id_shownote_{{cmid}}"
-                                aria-label="{{#str}}shownoteforactivity, tool_activitydates, {{name}}{{/str}}"
-                                {{#shownote}}checked{{/shownote}}>
-                        </td>
-                    </tr>
-                {{/tabledata}}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {{^tabledata}}
+                        <tr>
+                            <td colspan="5">{{#str}}nogradableactivities, tool_activitydates{{/str}}</td>
+                        </tr>
+                    {{/tabledata}}
+                    {{#tabledata}}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="cmids[]" value="{{cmid}}" form="{{formid}}"
+                                    id="id_cmid_{{cmid}}"
+                                    aria-label="{{#str}}selectactivity, tool_activitydates, {{name}}{{/str}}"
+                                    {{#selected}}checked{{/selected}}>
+                            </td>
+                            <td><a href="{{config.wwwroot}}/mod/{{modname}}/view.php?id={{cmid}}">{{name}}</a></td>
+                            <td>
+                                {{#haslocktime}}
+                                    <time datetime="{{lockdateattr}}">{{lockmessage}}</time>
+                                {{/haslocktime}}
+                                {{^haslocktime}}
+                                    {{#str}}nolockscheduled, tool_activitydates{{/str}}
+                                {{/haslocktime}}
+                            </td>
+                            <td>
+                                {{#selected}}
+                                    <input type="datetime-local" class="form-control{{#locktimeinvalid}} is-invalid{{/locktimeinvalid}}"
+                                        name="locktime_rows[{{cmid}}]" form="{{formid}}" value="{{locktimevalue}}"
+                                        data-cmid="{{cmid}}" data-field="locktime"
+                                        id="tool_activitydates_locktime_{{cmid}}"
+                                        aria-describedby="tool_activitydates_locktime_{{cmid}}_hint"
+                                        aria-label="{{#str}}lockdate, tool_activitydates{{/str}}: {{name}}">
+                                    <div class="invalid-feedback" data-region="tool_activitydates-hint" data-cmid="{{cmid}}"
+                                        data-field="locktime" id="tool_activitydates_locktime_{{cmid}}_hint">{{locktimeerror}}</div>
+                                {{/selected}}
+                            </td>
+                            <td>
+                                <input type="checkbox" name="shownote_cmids[]" value="{{cmid}}" form="{{formid}}"
+                                    id="id_shownote_{{cmid}}"
+                                    aria-label="{{#str}}shownoteforactivity, tool_activitydates, {{name}}{{/str}}"
+                                    {{#shownote}}checked{{/shownote}}>
+                            </td>
+                        </tr>
+                    {{/tabledata}}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
