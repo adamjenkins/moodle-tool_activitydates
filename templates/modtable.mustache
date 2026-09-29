@@ -19,9 +19,10 @@
 
     Table of a course's activities of one module type: their current dates,
     the sessions they are scheduled into, and, for selected and scheduled
-    activities, editable open/(due)/close dates filled with the proposed values.
-    The date inputs sit outside the moodleform and carry form="formid" so they
-    post with it.
+    activities, the open, (due), close and lock dates, filled with the proposed
+    values where the user may edit them and showing the current values
+    read-only otherwise. The inputs sit outside the moodleform and carry
+    form="formid" so they post with it.
 
     Classes required for JS:
     * none
@@ -35,11 +36,13 @@
     Context variables required for this template:
     * formid string - the id of the moodleform the inputs submit with
     * fingerprint string - the settings fingerprint the table was built from
+    * hasdates bool - whether the type has open and close dates (Open and Close columns)
     * hasdue bool - whether the type has due dates (Due column)
+    * showlocks bool - whether to show the Locked and Show note columns (:managelocks and a graded type)
     * modname string - the module type name (e.g. quiz), used in the activity links
     * showquestioncount bool - whether to show the question count column
     * colcount int - number of visible columns, drives the session header colspan
-    * editcolspan int - number of editable date columns, spanned by the status text
+    * editcolspan int - number of date columns (open, due, close, locked), spanned by the status text
     * tabledata array - list of header and activity rows
       * isheader bool - true for a session header row
       * dates object - the session window (absent when the session is not scheduled)
@@ -62,8 +65,14 @@
       * timeclose int - current close timestamp, 0 when unset (activity rows)
       * timecloseformatted string - current close date formatted for display, empty when unset
       * timecloseattr string - current close date for the datetime attribute, empty when unset
-      * editable bool - whether the row has editable date inputs (selected and scheduled)
-      * statustext string - what Save does to a non-editable row
+      * locktime int - current gradebook lock timestamp, 0 when unset (activity rows)
+      * locktimeformatted string - current lock date formatted for display, empty when unset
+      * locktimeattr string - current lock date for the datetime attribute, empty when unset
+      * shownote bool - whether the activity's student lock note is ticked
+      * editable bool - whether the row is selected and scheduled
+      * editdates bool - whether the row's open, due and close are inputs
+      * editlock bool - whether the row's lock date is an input
+      * statustext string - what Save does to a row that is not editable
       * timeopenvalue string - the open input's value (YYYY-MM-DDTHH:MM or empty)
       * timeopeninvalid bool - whether the open value failed validation
       * timeopenerror string - the open value's error message
@@ -73,16 +82,21 @@
       * timeclosevalue string - the close input's value
       * timecloseinvalid bool - whether the close value failed validation
       * timecloseerror string - the close value's error message
+      * timelockvalue string - the lock input's value
+      * timelockinvalid bool - whether the lock value failed validation
+      * timelockerror string - the lock value's error message
 
     Example context (json):
     {
         "formid": "tool_activitydates_dates_form",
         "fingerprint": "0123456789abcdef0123456789abcdef01234567",
+        "hasdates": true,
         "hasdue": true,
+        "showlocks": true,
         "modname": "quiz",
         "showquestioncount": true,
-        "colcount": 8,
-        "editcolspan": 3,
+        "colcount": 11,
+        "editcolspan": 4,
         "tabledata": [
             {
                 "isheader": true,
@@ -110,7 +124,13 @@
                 "timeclose": 1705052400,
                 "timecloseformatted": "Fri 12 Jan 2024 10:00",
                 "timecloseattr": "2024-01-12T10:00",
+                "locktime": 0,
+                "locktimeformatted": "",
+                "locktimeattr": "",
+                "shownote": true,
                 "editable": true,
+                "editdates": true,
+                "editlock": true,
                 "statustext": "",
                 "timeopenvalue": "2024-01-05T10:00",
                 "timeopeninvalid": false,
@@ -120,7 +140,10 @@
                 "duedateerror": "The due date must be after the open date.",
                 "timeclosevalue": "2024-01-12T10:00",
                 "timecloseinvalid": false,
-                "timecloseerror": ""
+                "timecloseerror": "",
+                "timelockvalue": "",
+                "timelockinvalid": false,
+                "timelockerror": ""
             },
             {
                 "isheader": false,
@@ -138,7 +161,13 @@
                 "timeclose": 0,
                 "timecloseformatted": "",
                 "timecloseattr": "",
+                "locktime": 1705052400,
+                "locktimeformatted": "Fri 12 Jan 2024 10:00",
+                "locktimeattr": "2024-01-12T10:00",
+                "shownote": false,
                 "editable": false,
+                "editdates": false,
+                "editlock": false,
                 "statustext": "Not scheduled"
             }
         ]
@@ -154,21 +183,33 @@
             <table class="table table-hover table-bordered table-striped">
                 <thead>
                     <tr>
-                        <th>
+                        <th scope="col">
                             <input type="checkbox" name="selectall" id="id_selectall"
+                                aria-label="{{#str}}toggleselection, tool_activitydates{{/str}}"
                                 title="{{#str}}toggleselection, tool_activitydates{{/str}}">
                         </th>
-                        <th class="col-md-0">{{#str}}name{{/str}}</th>
-                        <th class="col-md-3">{{#str}}description{{/str}}</th>
+                        <th scope="col" class="col-md-0">{{#str}}name{{/str}}</th>
+                        <th scope="col" class="col-md-3">{{#str}}description{{/str}}</th>
                         {{#showquestioncount}}
-                            <th class="col-md-1">{{#str}}questioncount, tool_activitydates{{/str}}</th>
+                            <th scope="col" class="col-md-1">{{#str}}questioncount, tool_activitydates{{/str}}</th>
                         {{/showquestioncount}}
-                        <th class="col-md-2">{{#str}}current, tool_activitydates{{/str}}</th>
-                        <th>{{#str}}open, tool_activitydates{{/str}}</th>
-                        {{#hasdue}}
-                            <th>{{#str}}due, tool_activitydates{{/str}}</th>
-                        {{/hasdue}}
-                        <th>{{#str}}close, tool_activitydates{{/str}}</th>
+                        <th scope="col" class="col-md-2">{{#str}}current, tool_activitydates{{/str}}</th>
+                        {{#hasdates}}
+                            <th scope="col">{{#str}}open, tool_activitydates{{/str}}</th>
+                            {{#hasdue}}
+                                <th scope="col">{{#str}}due, tool_activitydates{{/str}}</th>
+                            {{/hasdue}}
+                            <th scope="col">{{#str}}close, tool_activitydates{{/str}}</th>
+                        {{/hasdates}}
+                        {{#showlocks}}
+                            <th scope="col">{{#str}}locked, core_grades{{/str}}</th>
+                            <th scope="col">
+                                <input type="checkbox" id="id_togglenotes"
+                                    aria-label="{{#str}}togglenotes, tool_activitydates{{/str}}"
+                                    title="{{#str}}togglenotes, tool_activitydates{{/str}}">
+                                {{#str}}shownote, tool_activitydates{{/str}}
+                            </th>
+                        {{/showlocks}}
                     </tr>
                 </thead>
                 <tbody>
@@ -205,61 +246,116 @@
                                     <td>{{questioncount}}</td>
                                 {{/showquestioncount}}
                                 <td>
-                                    <div>
-                                        <span class="text-muted">{{#str}}open, tool_activitydates{{/str}}:</span>
-                                        {{#timeopen}}<time datetime="{{timeopenattr}}">{{timeopenformatted}}</time>{{/timeopen}}
-                                        {{^timeopen}}&mdash;{{/timeopen}}
-                                    </div>
-                                    {{#hasdue}}
+                                    {{#hasdates}}
                                         <div>
-                                            <span class="text-muted">{{#str}}due, tool_activitydates{{/str}}:</span>
-                                            {{#duedate}}<time datetime="{{duedateattr}}">{{duedateformatted}}</time>{{/duedate}}
-                                            {{^duedate}}&mdash;{{/duedate}}
+                                            <span class="text-muted">{{#str}}open, tool_activitydates{{/str}}:</span>
+                                            {{#timeopen}}<time datetime="{{timeopenattr}}">{{timeopenformatted}}</time>{{/timeopen}}
+                                            {{^timeopen}}&mdash;{{/timeopen}}
                                         </div>
-                                    {{/hasdue}}
-                                    <div>
-                                        <span class="text-muted">{{#str}}close, tool_activitydates{{/str}}:</span>
-                                        {{#timeclose}}<time datetime="{{timecloseattr}}">{{timecloseformatted}}</time>{{/timeclose}}
-                                        {{^timeclose}}&mdash;{{/timeclose}}
-                                    </div>
+                                        {{#hasdue}}
+                                            <div>
+                                                <span class="text-muted">{{#str}}due, tool_activitydates{{/str}}:</span>
+                                                {{#duedate}}<time datetime="{{duedateattr}}">{{duedateformatted}}</time>{{/duedate}}
+                                                {{^duedate}}&mdash;{{/duedate}}
+                                            </div>
+                                        {{/hasdue}}
+                                        <div>
+                                            <span class="text-muted">{{#str}}close, tool_activitydates{{/str}}:</span>
+                                            {{#timeclose}}<time datetime="{{timecloseattr}}">{{timecloseformatted}}</time>{{/timeclose}}
+                                            {{^timeclose}}&mdash;{{/timeclose}}
+                                        </div>
+                                    {{/hasdates}}
+                                    {{#showlocks}}
+                                        <div>
+                                            <span class="text-muted">{{#str}}locked, core_grades{{/str}}:</span>
+                                            {{#locktime}}<time datetime="{{locktimeattr}}">{{locktimeformatted}}</time>{{/locktime}}
+                                            {{^locktime}}&mdash;{{/locktime}}
+                                        </div>
+                                    {{/showlocks}}
                                 </td>
                                 {{#editable}}
-                                    <td>
-                                        <input type="datetime-local" class="form-control{{#timeopeninvalid}} is-invalid{{/timeopeninvalid}}"{{#timeopeninvalid}} aria-invalid="true"{{/timeopeninvalid}}
-                                            name="timeopen_rows[{{id}}]" form="{{formid}}" value="{{timeopenvalue}}"
-                                            data-cmid="{{id}}" data-field="timeopen"
-                                            id="tool_activitydates_timeopen_{{id}}"
-                                            aria-describedby="tool_activitydates_timeopen_{{id}}_hint"
-                                            aria-label="{{#str}}open, tool_activitydates{{/str}}: {{name}}">
-                                        <div class="invalid-feedback" data-region="tool_activitydates-hint" data-cmid="{{id}}"
-                                            data-field="timeopen" id="tool_activitydates_timeopen_{{id}}_hint">{{timeopenerror}}</div>
-                                    </td>
-                                    {{#hasdue}}
+                                    {{#hasdates}}
                                         <td>
-                                            <input type="datetime-local" class="form-control{{#duedateinvalid}} is-invalid{{/duedateinvalid}}"{{#duedateinvalid}} aria-invalid="true"{{/duedateinvalid}}
-                                                name="duedate_rows[{{id}}]" form="{{formid}}" value="{{duedatevalue}}"
-                                                data-cmid="{{id}}" data-field="duedate"
-                                                id="tool_activitydates_duedate_{{id}}"
-                                                aria-describedby="tool_activitydates_duedate_{{id}}_hint"
-                                                aria-label="{{#str}}due, tool_activitydates{{/str}}: {{name}}">
-                                            <div class="invalid-feedback" data-region="tool_activitydates-hint" data-cmid="{{id}}"
-                                                data-field="duedate" id="tool_activitydates_duedate_{{id}}_hint">{{duedateerror}}</div>
+                                            {{#editdates}}
+                                                <input type="datetime-local" class="form-control{{#timeopeninvalid}} is-invalid{{/timeopeninvalid}}"{{#timeopeninvalid}} aria-invalid="true"{{/timeopeninvalid}}
+                                                    name="timeopen_rows[{{id}}]" form="{{formid}}" value="{{timeopenvalue}}"
+                                                    data-cmid="{{id}}" data-field="timeopen"
+                                                    id="tool_activitydates_timeopen_{{id}}"
+                                                    aria-describedby="tool_activitydates_timeopen_{{id}}_hint"
+                                                    aria-label="{{#str}}open, tool_activitydates{{/str}}: {{name}}">
+                                                <div class="invalid-feedback" data-region="tool_activitydates-hint" data-cmid="{{id}}"
+                                                    data-field="timeopen" id="tool_activitydates_timeopen_{{id}}_hint">{{timeopenerror}}</div>
+                                            {{/editdates}}
+                                            {{^editdates}}
+                                                {{#timeopen}}<time datetime="{{timeopenattr}}">{{timeopenformatted}}</time>{{/timeopen}}
+                                                {{^timeopen}}&mdash;{{/timeopen}}
+                                            {{/editdates}}
                                         </td>
-                                    {{/hasdue}}
-                                    <td>
-                                        <input type="datetime-local" class="form-control{{#timecloseinvalid}} is-invalid{{/timecloseinvalid}}"{{#timecloseinvalid}} aria-invalid="true"{{/timecloseinvalid}}
-                                            name="timeclose_rows[{{id}}]" form="{{formid}}" value="{{timeclosevalue}}"
-                                            data-cmid="{{id}}" data-field="timeclose"
-                                            id="tool_activitydates_timeclose_{{id}}"
-                                            aria-describedby="tool_activitydates_timeclose_{{id}}_hint"
-                                            aria-label="{{#str}}close, tool_activitydates{{/str}}: {{name}}">
-                                        <div class="invalid-feedback" data-region="tool_activitydates-hint" data-cmid="{{id}}"
-                                            data-field="timeclose" id="tool_activitydates_timeclose_{{id}}_hint">{{timecloseerror}}</div>
-                                    </td>
+                                        {{#hasdue}}
+                                            <td>
+                                                {{#editdates}}
+                                                    <input type="datetime-local" class="form-control{{#duedateinvalid}} is-invalid{{/duedateinvalid}}"{{#duedateinvalid}} aria-invalid="true"{{/duedateinvalid}}
+                                                        name="duedate_rows[{{id}}]" form="{{formid}}" value="{{duedatevalue}}"
+                                                        data-cmid="{{id}}" data-field="duedate"
+                                                        id="tool_activitydates_duedate_{{id}}"
+                                                        aria-describedby="tool_activitydates_duedate_{{id}}_hint"
+                                                        aria-label="{{#str}}due, tool_activitydates{{/str}}: {{name}}">
+                                                    <div class="invalid-feedback" data-region="tool_activitydates-hint" data-cmid="{{id}}"
+                                                        data-field="duedate" id="tool_activitydates_duedate_{{id}}_hint">{{duedateerror}}</div>
+                                                {{/editdates}}
+                                                {{^editdates}}
+                                                    {{#duedate}}<time datetime="{{duedateattr}}">{{duedateformatted}}</time>{{/duedate}}
+                                                    {{^duedate}}&mdash;{{/duedate}}
+                                                {{/editdates}}
+                                            </td>
+                                        {{/hasdue}}
+                                        <td>
+                                            {{#editdates}}
+                                                <input type="datetime-local" class="form-control{{#timecloseinvalid}} is-invalid{{/timecloseinvalid}}"{{#timecloseinvalid}} aria-invalid="true"{{/timecloseinvalid}}
+                                                    name="timeclose_rows[{{id}}]" form="{{formid}}" value="{{timeclosevalue}}"
+                                                    data-cmid="{{id}}" data-field="timeclose"
+                                                    id="tool_activitydates_timeclose_{{id}}"
+                                                    aria-describedby="tool_activitydates_timeclose_{{id}}_hint"
+                                                    aria-label="{{#str}}close, tool_activitydates{{/str}}: {{name}}">
+                                                <div class="invalid-feedback" data-region="tool_activitydates-hint" data-cmid="{{id}}"
+                                                    data-field="timeclose" id="tool_activitydates_timeclose_{{id}}_hint">{{timecloseerror}}</div>
+                                            {{/editdates}}
+                                            {{^editdates}}
+                                                {{#timeclose}}<time datetime="{{timecloseattr}}">{{timecloseformatted}}</time>{{/timeclose}}
+                                                {{^timeclose}}&mdash;{{/timeclose}}
+                                            {{/editdates}}
+                                        </td>
+                                    {{/hasdates}}
+                                    {{#showlocks}}
+                                        <td>
+                                            {{#editlock}}
+                                                <input type="datetime-local" class="form-control{{#timelockinvalid}} is-invalid{{/timelockinvalid}}"{{#timelockinvalid}} aria-invalid="true"{{/timelockinvalid}}
+                                                    name="timelock_rows[{{id}}]" form="{{formid}}" value="{{timelockvalue}}"
+                                                    data-cmid="{{id}}" data-field="timelock"
+                                                    id="tool_activitydates_timelock_{{id}}"
+                                                    aria-describedby="tool_activitydates_timelock_{{id}}_hint"
+                                                    aria-label="{{#str}}locked, core_grades{{/str}}: {{name}}">
+                                                <div class="invalid-feedback" data-region="tool_activitydates-hint" data-cmid="{{id}}"
+                                                    data-field="timelock" id="tool_activitydates_timelock_{{id}}_hint">{{timelockerror}}</div>
+                                            {{/editlock}}
+                                            {{^editlock}}
+                                                {{#locktime}}<time datetime="{{locktimeattr}}">{{locktimeformatted}}</time>{{/locktime}}
+                                                {{^locktime}}&mdash;{{/locktime}}
+                                            {{/editlock}}
+                                        </td>
+                                    {{/showlocks}}
                                 {{/editable}}
                                 {{^editable}}
                                     <td colspan="{{editcolspan}}">{{statustext}}</td>
                                 {{/editable}}
+                                {{#showlocks}}
+                                    <td>
+                                        <input type="checkbox" name="shownote_cmids[]" value="{{id}}" form="{{formid}}"
+                                            id="id_shownote_{{id}}"
+                                            aria-label="{{#str}}shownoteforactivity, tool_activitydates, {{name}}{{/str}}"
+                                            {{#shownote}}checked{{/shownote}}>
+                                    </td>
+                                {{/showlocks}}
                             </tr>
                         {{/isheader}}
                     {{/tabledata}}

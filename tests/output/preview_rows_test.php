@@ -96,4 +96,43 @@ final class preview_rows_test extends \advanced_testcase {
         // A posted value for a non-editable row is not echoed.
         $this->assertSame('', $rows[2]['timeopenvalue']);
     }
+
+    public function test_edit_flags_and_lock_column(): void {
+        $tz = new \DateTimeZone('Europe/London');
+        $open = (new \DateTimeImmutable('2030-01-07 09:00', $tz))->getTimestamp();
+        $table = $this->table($open);
+        $table[1]['proposed']['timelock'] = $open + 2 * DAYSECS;
+        $table[1]['hasgradeitem'] = true;
+        $table[1]['locktime'] = $open - DAYSECS;
+        $table[1]['shownote'] = true;
+        $table[2]['hasgradeitem'] = true;
+        $table[2]['locktime'] = 0;
+        $table[2]['shownote'] = false;
+
+        // Locks only: open and close are read-only, the lock date is an input.
+        $rows = preview_rows::dates($table, null, [], $tz, false, true);
+        $this->assertFalse($rows[1]['editdates']);
+        $this->assertTrue($rows[1]['editlock']);
+        $this->assertSame('', $rows[1]['timeopenvalue']);
+        $this->assertSame('2030-01-09T09:00', $rows[1]['timelockvalue']);
+        $this->assertSame('2030-01-06T09:00', $rows[1]['locktimeattr']);
+        $this->assertTrue($rows[1]['shownote']);
+        $this->assertFalse($rows[2]['editlock']);
+        $this->assertSame('', $rows[2]['locktimeattr']);
+
+        // Dates only (or lock mode none): the lock date is read-only.
+        $rows = preview_rows::dates($table, null, [], $tz, true, false);
+        $this->assertTrue($rows[1]['editdates']);
+        $this->assertFalse($rows[1]['editlock']);
+        $this->assertSame('', $rows[1]['timelockvalue']);
+
+        // No grade item: never a lock input.
+        $table[1]['hasgradeitem'] = false;
+        $this->assertFalse(preview_rows::dates($table, null, [], $tz, true, true)[1]['editlock']);
+
+        // Posted note ticks win over the saved ones.
+        $rows = preview_rows::dates($table, null, [], $tz, true, true, [12]);
+        $this->assertFalse($rows[1]['shownote']);
+        $this->assertTrue($rows[2]['shownote']);
+    }
 }

@@ -35,6 +35,11 @@ require_once($CFG->libdir . '/formslib.php');
  * Lets a teacher choose an activity type, a schedule window and per-session
  * settings, and pick which activities of that type to schedule.
  *
+ * The controls shown depend on the customdata flags canmanage, canlocks,
+ * hasdates and hasdue: the due and close settings and the Advanced section need
+ * canmanage and a type with dates (due also needs hasdue), and the Grade locks
+ * section needs canlocks. It is collapsed while the lock mode is none.
+ *
  * The editable date table is rendered outside this form; its inputs carry
  * form="self::FORM_ID" so they post with it.
  */
@@ -105,6 +110,11 @@ class activitydates_form extends \moodleform {
         }
 
         $defaults = self::form_defaults($settings);
+        $canmanage = (bool) ($this->_customdata['canmanage'] ?? true);
+        $canlocks = (bool) ($this->_customdata['canlocks'] ?? false);
+        $hasdates = (bool) ($this->_customdata['hasdates'] ?? true);
+        $hasdue = (bool) ($this->_customdata['hasdue'] ?? activitydates::has_duedate($modtype));
+        $editdates = $canmanage && $hasdates;
 
         $mform->addElement(
             'date_time_selector',
@@ -141,38 +151,67 @@ class activitydates_form extends \moodleform {
         $mform->setDefault('activitiespersession', $defaults->activitiespersession);
         $mform->addHelpButton('activitiespersession', 'activitiespersession', 'tool_activitydates');
 
-        $this->add_mode_elements('close', $defaults);
-        // Due dates only for types whose table has a duedate column (quiz from 5.3).
-        if (activitydates::has_duedate($modtype)) {
+        // Open has no settings of its own: it is the session start. Due dates only
+        // for types whose table has a duedate column (quiz from 5.3).
+        if ($editdates && $hasdue) {
             $this->add_mode_elements('due', $defaults);
         }
+        if ($editdates) {
+            $this->add_mode_elements('close', $defaults);
+        }
 
-        $mform->addElement('advcheckbox', 'hideunselected', get_string('hideunselected', 'tool_activitydates'));
-        $mform->addHelpButton('hideunselected', 'hideunselected', 'tool_activitydates');
-        $mform->setDefault('hideunselected', $defaults->hideunselected);
-        $mform->setAdvanced('hideunselected');
+        if ($canlocks) {
+            $mform->addElement('header', 'gradelocksheader', get_string('gradelocksheader', 'tool_activitydates'));
+            // Collapsed on page load while grade locking is not in use. A submitted
+            // page (Preview, Save) keeps the state the user left it in.
+            $mform->setExpanded('gradelocksheader', $defaults->lockmode !== schedule::MODE_NONE);
+            $this->add_mode_elements('lock', $defaults);
 
-        $mform->addElement('advcheckbox', 'resetunselected', get_string('resetunselected', 'tool_activitydates'));
-        $mform->addHelpButton('resetunselected', 'resetunselected', 'tool_activitydates');
-        $mform->setDefault('resetunselected', $defaults->resetunselected);
-        $mform->setAdvanced('resetunselected');
+            $mform->addElement('advcheckbox', 'shownote', get_string('shownote', 'tool_activitydates'));
+            $mform->addHelpButton('shownote', 'shownote', 'tool_activitydates');
+            $mform->setDefault('shownote', $defaults->shownote);
+
+            $mform->addElement('advcheckbox', 'shownotecoursepage', get_string('shownotecoursepage', 'tool_activitydates'));
+            $mform->addHelpButton('shownotecoursepage', 'shownotecoursepage', 'tool_activitydates');
+            $mform->setDefault('shownotecoursepage', $defaults->shownotecoursepage);
+
+            $mform->addElement('advcheckbox', 'lockresetunselected', get_string('lockresetunselected', 'tool_activitydates'));
+            $mform->addHelpButton('lockresetunselected', 'lockresetunselected', 'tool_activitydates');
+            $mform->setDefault('lockresetunselected', $defaults->lockresetunselected);
+        }
+
+        if ($editdates) {
+            // A section of its own, so it does not fall inside the Grade locks section.
+            $mform->addElement('header', 'advancedheader', get_string('advanced'));
+            $mform->setExpanded('advancedheader', false);
+
+            $mform->addElement('advcheckbox', 'hideunselected', get_string('hideunselected', 'tool_activitydates'));
+            $mform->addHelpButton('hideunselected', 'hideunselected', 'tool_activitydates');
+            $mform->setDefault('hideunselected', $defaults->hideunselected);
+
+            $mform->addElement('advcheckbox', 'resetunselected', get_string('resetunselected', 'tool_activitydates'));
+            $mform->addHelpButton('resetunselected', 'resetunselected', 'tool_activitydates');
+            $mform->setDefault('resetunselected', $defaults->resetunselected);
+        }
 
         $this->add_action_buttons();
     }
 
     /**
-     * Add the mode select and its days / date controls for close or due dates.
+     * Add the mode select and its days / date controls for close, due or lock dates.
      *
      * The days field shows only in days mode and the date only in date mode.
+     * The lock mode's none option reads "No lock", and its date is "Lock all on".
      *
-     * @param string $prefix 'close' or 'due'.
+     * @param string $prefix 'close', 'due' or 'lock'.
      * @param \stdClass $defaults the form defaults (see form_defaults()).
      */
     protected function add_mode_elements(string $prefix, \stdClass $defaults): void {
         $mform = $this->_form;
         $options = [];
         foreach (schedule::MODES as $mode) {
-            $options[$mode] = get_string('mode_' . $mode, 'tool_activitydates');
+            $key = $prefix === 'lock' && $mode === schedule::MODE_NONE ? 'lockmode_none' : 'mode_' . $mode;
+            $options[$mode] = get_string($key, 'tool_activitydates');
         }
 
         $mform->addElement('select', $prefix . 'mode', get_string($prefix . 'mode', 'tool_activitydates'), $options);
@@ -184,7 +223,8 @@ class activitydates_form extends \moodleform {
         $mform->setDefault($prefix . 'days', $defaults->{$prefix . 'days'});
         $mform->hideIf($prefix . 'days', $prefix . 'mode', 'neq', schedule::MODE_DAYS);
 
-        $mform->addElement('date_time_selector', $prefix . 'date', get_string($prefix . 'date', 'tool_activitydates'));
+        $datelabel = $prefix === 'lock' ? 'lockall' : $prefix . 'date';
+        $mform->addElement('date_time_selector', $prefix . 'date', get_string($datelabel, 'tool_activitydates'));
         $mform->setDefault($prefix . 'date', $defaults->{$prefix . 'date'});
         $mform->hideIf($prefix . 'date', $prefix . 'mode', 'neq', schedule::MODE_DATE);
     }
@@ -216,7 +256,7 @@ class activitydates_form extends \moodleform {
      * The form values for a settings object, with site-config fallbacks.
      *
      * A disabled finish date is 0 (so the optional selector renders disabled),
-     * an unset close/due date defaults to the finish date (or two weeks after
+     * an unset close, due or lock date defaults to the finish date (or two weeks after
      * the start), and every timestamp is floored to the minute, which is the
      * precision the date selectors submit.
      *
@@ -235,7 +275,8 @@ class activitydates_form extends \moodleform {
         $defaults->sessionlength = (int) ($settings->sessionlength ?? $config('sessionlength', 7));
         $defaults->activitiespersession = (int) ($settings->activitiespersession ?? $config('activitiespersession', 2));
         $fallbackdate = $defaults->schedulefinish ?: $minute($defaults->schedulestart + 14 * DAYSECS);
-        foreach (['close' => schedule::MODE_SESSION, 'due' => schedule::MODE_NONE] as $prefix => $defaultmode) {
+        $modes = ['close' => schedule::MODE_SESSION, 'due' => schedule::MODE_NONE, 'lock' => schedule::MODE_NONE];
+        foreach ($modes as $prefix => $defaultmode) {
             $defaults->{$prefix . 'mode'} = (string) ($settings->{$prefix . 'mode'} ?? $config($prefix . 'mode', $defaultmode));
             $defaults->{$prefix . 'days'} = (int) ($settings->{$prefix . 'days'} ?? $config($prefix . 'days', 7));
             $date = (int) ($settings->{$prefix . 'date'} ?? 0);
@@ -243,6 +284,9 @@ class activitydates_form extends \moodleform {
         }
         $defaults->hideunselected = (int) ($settings->hideunselected ?? $config('hideunselected', 0));
         $defaults->resetunselected = (int) ($settings->resetunselected ?? $config('resetunselected', 0));
+        $defaults->shownote = (int) ($settings->shownote ?? $config('lockshownote', 1));
+        $defaults->shownotecoursepage = (int) ($settings->shownotecoursepage ?? $config('lockshownotecoursepage', 0));
+        $defaults->lockresetunselected = (int) ($settings->lockresetunselected ?? 0);
         return $defaults;
     }
 
@@ -340,7 +384,7 @@ class activitydates_form extends \moodleform {
             $errors['sessionlength'] = get_string('sessionlengthislonger', 'tool_activitydates');
         }
 
-        foreach (['close', 'due'] as $prefix) {
+        foreach (['close', 'due', 'lock'] as $prefix) {
             if (!isset($data[$prefix . 'mode'])) {
                 continue;
             }

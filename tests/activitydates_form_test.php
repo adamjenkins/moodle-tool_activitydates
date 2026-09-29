@@ -241,4 +241,135 @@ final class activitydates_form_test extends \advanced_testcase {
         $this->assertSame($start - 42 + 7 * DAYSECS, $defaults->schedulefinish);
         $this->assertSame('days', $defaults->closemode);
     }
+
+    /**
+     * Render the form for a course with one quiz and one assignment.
+     *
+     * @param string $modtype the type shown.
+     * @param array $flags the canmanage, canlocks, hasdates and hasdue customdata.
+     * @param array $settings extra settings fields.
+     * @return string the rendered form.
+     */
+    private function render_with(string $modtype, array $flags, array $settings = []): string {
+        global $PAGE;
+        $course = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->create_module('quiz', ['course' => $course->id]);
+        $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        $PAGE->set_context(\context_course::instance($course->id));
+        $types = local\pagetypes::for_course($course->id, true, true);
+        $form = new activitydates_form('x', [
+            'courseid' => $course->id,
+            'modules' => array_map(fn(array $type): string => $type['label'], $types),
+            'modtype' => $modtype,
+            'settings' => (object) ($settings + ['id' => 0, 'courseid' => $course->id, 'modtype' => $modtype]),
+        ] + $flags);
+        return $form->render();
+    }
+
+    /**
+     * The opening tag of the Grade locks section's fieldset.
+     *
+     * @param string $html the rendered form.
+     * @return string
+     */
+    private function lock_fieldset(string $html): string {
+        $this->assertSame(1, preg_match('~<fieldset[^>]*id="id_gradelocksheader"[^>]*>~', $html, $matches));
+        return $matches[0];
+    }
+
+    public function test_lock_section_collapsed_when_none(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $flags = ['canmanage' => true, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false];
+
+        // No lock: the section is collapsed.
+        $html = $this->render_with('quiz', $flags, ['lockmode' => 'none']);
+        $this->assertStringContainsString('collapsed', $this->lock_fieldset($html));
+        $this->assertStringContainsString('>' . get_string('gradelocksheader', 'tool_activitydates') . '<', $html);
+
+        // A lock mode in use: expanded.
+        $html = $this->render_with('quiz', $flags, ['lockmode' => 'session']);
+        $this->assertStringNotContainsString('collapsed', $this->lock_fieldset($html));
+
+        // No saved lock mode and no site default: none, so collapsed.
+        unset_config('lockmode', 'tool_activitydates');
+        $html = $this->render_with('quiz', $flags);
+        $this->assertStringContainsString('collapsed', $this->lock_fieldset($html));
+    }
+
+    public function test_controls_by_capability(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $datecontrols = ['name="closemode"', 'name="closedays"', 'name="hideunselected"', 'name="resetunselected"'];
+        $lockcontrols = ['name="lockmode"', 'name="lockdays"', 'name="lockdate[day]"', 'name="shownote"',
+            'name="shownotecoursepage"', 'name="lockresetunselected"', 'id="id_gradelocksheader"'];
+
+        // Both capabilities: everything.
+        $html = $this->render_with('quiz', ['canmanage' => true, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]);
+        foreach (array_merge($datecontrols, $lockcontrols) as $control) {
+            $this->assertStringContainsString($control, $html);
+        }
+
+        // Without :manage: no date controls, the lock controls stay.
+        $html = $this->render_with('quiz', ['canmanage' => false, 'canlocks' => true, 'hasdates' => true, 'hasdue' => true]);
+        foreach ($datecontrols as $control) {
+            $this->assertStringNotContainsString($control, $html);
+        }
+        $this->assertStringNotContainsString('name="duemode"', $html);
+        foreach ($lockcontrols as $control) {
+            $this->assertStringContainsString($control, $html);
+        }
+
+        // Without :managelocks: no lock controls, the date controls stay.
+        $html = $this->render_with('quiz', ['canmanage' => true, 'canlocks' => false, 'hasdates' => true, 'hasdue' => false]);
+        foreach ($datecontrols as $control) {
+            $this->assertStringContainsString($control, $html);
+        }
+        foreach ($lockcontrols as $control) {
+            $this->assertStringNotContainsString($control, $html);
+        }
+
+        // The schedule is there either way.
+        foreach (['name="schedulestart[day]"', 'name="sessionlength"', 'name="activitiespersession"'] as $control) {
+            $this->assertStringContainsString($control, $html);
+        }
+    }
+
+    public function test_lock_only_type_has_only_lock_controls(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $html = $this->render_with('assign', ['canmanage' => true, 'canlocks' => true, 'hasdates' => false, 'hasdue' => false]);
+
+        foreach (['closemode', 'closedays', 'duemode', 'hideunselected', 'resetunselected'] as $name) {
+            $this->assertStringNotContainsString('name="' . $name . '"', $html);
+        }
+        $this->assertStringNotContainsString('id="id_advancedheader"', $html);
+        foreach (['lockmode', 'lockdays', 'shownote', 'shownotecoursepage', 'lockresetunselected', 'sessionlength'] as $name) {
+            $this->assertStringContainsString('name="' . $name . '"', $html);
+        }
+    }
+
+    public function test_lock_settings_validation(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $form = $this->make_form();
+
+        // Lock days and lock date follow the close rules.
+        $data = ['lockmode' => 'days', 'lockdays' => 0] + $this->valid_data();
+        $this->assertArrayHasKey('lockdays', $form->validation($data, []));
+        $data['lockdays'] = 1;
+        $this->assertSame([], $form->validation($data, []));
+
+        $data = ['lockmode' => 'date', 'lockdate' => make_timestamp(2030, 1, 7, 9, 0)] + $this->valid_data();
+        $this->assertSame(
+            get_string('errorlockdatebeforestart', 'tool_activitydates'),
+            $form->validation($data, [])['lockdate'] ?? null
+        );
+        $data['lockdate'] = make_timestamp(2030, 1, 7, 9, 1);
+        $this->assertSame([], $form->validation($data, []));
+
+        // No lock ignores both.
+        $data = ['lockmode' => 'none', 'lockdays' => 0, 'lockdate' => 0] + $this->valid_data();
+        $this->assertSame([], $form->validation($data, []));
+    }
 }

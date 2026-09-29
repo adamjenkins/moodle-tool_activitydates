@@ -217,15 +217,14 @@ export const init = (formid, watchednames) => {
             return element ? element.value : null;
         };
 
-        const lock = value('locktime');
-        if (lock !== null) {
-            return {locktime: null};
-        }
-
         const open = value('timeopen');
         const close = value('timeclose');
         const due = value('duedate');
         const errors = {};
+        // The lock date has no ordering rule.
+        if (value('timelock') !== null) {
+            errors.timelock = null;
+        }
         if (open !== null) {
             errors.timeopen = null;
         }

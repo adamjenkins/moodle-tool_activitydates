@@ -15,8 +15,8 @@
 
 /**
  * Mirror the visible activity checkboxes into the hidden form checkboxes,
- * drive the select-all toggle, and preview automatically when the activity
- * type is changed.
+ * drive the select-all and toggle-all-notes checkboxes, and preview
+ * automatically when the activity type is changed.
  *
  * @module     tool_activitydates/modform
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -34,6 +34,16 @@ export const init = () => {
     if (modtypeSelect && previewButton) {
         modtypeSelect.addEventListener('change', () => {
             previewButton.click();
+        });
+    }
+
+    // The Show note column's header checkbox ticks or unticks every row's note.
+    const toggleNotesCheckbox = document.getElementById('id_togglenotes');
+    if (toggleNotesCheckbox) {
+        toggleNotesCheckbox.addEventListener('click', e => {
+            document.querySelectorAll("[id^='id_shownote_']").forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+            });
         });
     }
 
