@@ -2,7 +2,34 @@
 
 ## Unreleased
 
+Adds close/due options, an optional finish date and an editable preview table.
+
 - Declare Moodle 5.3 support.
+- New: the session **Finish** date has an Enable checkbox. Enabled, it only caps
+  the schedule (sessions that start after it are not scheduled); disabled,
+  every selected activity is scheduled. It no longer sets any time of day.
+- New: **Close dates** offers four options: after a number of days, at the end
+  of this session, all on a date, or no date. They replace the "Stay available
+  after session finish" checkbox, which the upgrade converts (on becomes "No
+  date", off becomes "At the end of this session"), in each course and in the
+  site defaults.
+- New: **Due dates**, with the same four options, for activity types whose
+  table has a `duedate` column: the quiz on Moodle 5.3 and later. Due dates must
+  be after the open date and no later than the close date, as in the quiz's own
+  settings, so the quiz's due date now stays consistent with the open and close
+  dates the tool writes. "Reset unselected" clears it too.
+- New: **Preview** replaces Refresh on both tabs. It fills an editable table
+  (open, due and close dates; lock dates on the Grade locks tab) and saves
+  nothing, where Refresh used to save the settings and selection. Save writes
+  exactly the dates in the table after checking every row; if a row is wrong,
+  nothing is written and the edits are kept.
+- New: a changed setting or selection marks the table stale. A bar asks for a
+  new Preview and the Save buttons are disabled; the server also refuses a save
+  whose settings no longer match the table.
+- Changed: "At the end of this session" now closes an activity when the next
+  session opens. 2.0.0 closed it the day before, at the finish date's time.
+- Changed: day counts use the teacher's timezone, so "+7 days" keeps the time
+  of day across a daylight-saving change.
 
 ## v2.0.0
 

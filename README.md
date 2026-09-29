@@ -13,13 +13,17 @@ A Moodle admin tool that bulk-schedules activity open and close dates across a c
 
 ## How it works
 
-From a course's administration menu, a teacher or manager opens **Activity dates**, picks an activity type, and sets a schedule start date, finish date, session length (in days), and how many activities go in each session. The tool splits the course's activities of that type into sessions in course order (the order they appear on the course page, so an activity inside a subsection counts at the subsection's position), and for each selected activity writes an open date at the start of its session and a close date at the end of it (unless "Stay available after session finish" is set, in which case no close date is written).
+From a course's administration menu, a teacher or manager opens **Activity dates**, picks an activity type, and sets a schedule start date, an optional finish date, session length (in days), and how many activities go in each session. The tool splits the course's activities of that type into sessions in course order (the order they appear on the course page, so an activity inside a subsection counts at the subsection's position), and proposes for each selected activity an open date at the start of its session. When the finish date is enabled, sessions that start after it are not scheduled; when it is disabled, every selected activity is scheduled.
 
-Activities left unselected are untouched by default, but can optionally be hidden and/or have their dates reset.
+The close date follows one of four options: a number of days after opening, the end of the session (when the next session opens), one common date, or no close date. Activity types whose table also has a `duedate` column (in a standard Moodle, the quiz on Moodle 5.3 and later) get the same four options for due dates; the tool checks the column, not the Moodle version. Due dates must fall after the open date and no later than the close date, the quiz's own rule.
+
+**Preview** fills an editable table with the proposed open, due and close dates and saves nothing. The dates can then be edited row by row, and **Save** writes exactly what the table shows. Before writing, every row is validated, and if any row fails nothing is written and the edits are kept for correction. Changing a setting or a selection after previewing marks the table stale: a bar asks for a new Preview and the Save buttons are disabled, and the server refuses a save whose settings no longer match the ones the table was built from.
+
+Activities left unselected are untouched by default, but can optionally be hidden and/or have their dates (including the due date) reset.
 
 ## Grade locks
 
-The same page has a second tab, **Grade locks**, which schedules gradebook lock dates instead of open/close dates. Pick a gradable activity type, a schedule start, a session length and how many activities go in each session, then tick the activities to lock. The selected activities are grouped into sessions in course order, and each session's grade items get a lock date at the end of its session. Moodle's own gradebook lock task (`\core\task\grade_cron_task`) locks each grade item when its date passes; the plugin stores no lock dates of its own, only the course's settings and selections. An activity of a gradable type that has no grade item is skipped. "Reset unselected" clears the lock date of every unticked activity of that type.
+The same page has a second tab, **Grade locks**, which schedules gradebook lock dates instead of open/close dates. Pick a gradable activity type, a schedule start, a session length and how many activities go in each session, then tick the activities to lock. The selected activities are grouped into sessions in course order, and each session's grade items get a lock date at the end of its session. Moodle's own gradebook lock task (`\core\task\grade_cron_task`) locks each grade item when its date passes; the plugin stores no lock dates of its own, only the course's settings and selections. An activity of a gradable type that has no grade item is skipped. "Reset unselected" clears the lock date of every unticked activity of that type. As on the dates tab, **Preview** fills an editable lock-date column with the proposed dates without saving anything, Save writes the table's lock dates, and a stale table blocks Save until the next Preview.
 
 **Capability.** The tab needs `tool/activitydates:managelocks` (editing teachers and managers by default, cloned from `moodle/grade:manage`), separate from `tool/activitydates:manage` for the dates tab. The tab row shows only the tabs the user can open; a user with only `managelocks` who opens the dates page is sent to the Grade locks page, and the course navigation entry "Activity dates" links to the first page the user can open.
 
@@ -29,7 +33,7 @@ The same page has a second tab, **Grade locks**, which schedules gradebook lock 
 
 ## Settings
 
-Site administration → Plugins → Admin tools → Activity dates provides site-wide defaults for the scheduling form: session length, activities per session, and whether activities stay available after their session finishes / unselected activities are hidden by default. A "Grade locks" heading on the same page holds separate defaults for the Grade locks tab: session length, activities per session, whether the student note is on, and whether notes also show on the course page.
+Site administration → Plugins → Admin tools → Activity dates provides site-wide defaults for the scheduling form: session length, activities per session, the close-date and due-date options (with their number of days), and whether unselected activities are hidden by default. A "Grade locks" heading on the same page holds separate defaults for the Grade locks tab: session length, activities per session, whether the student note is on, and whether notes also show on the course page.
 
 ## Privacy
 

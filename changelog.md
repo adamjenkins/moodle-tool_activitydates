@@ -4,9 +4,50 @@ All notable changes to `tool_activitydates` are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- An Enable checkbox for the session finish date. Enabled, it caps the
+  schedule: sessions that start after it are not scheduled. Disabled, every
+  selected activity is scheduled.
+- Close-date options on the Activity dates tab: after a number of days, at the
+  end of this session, all on a date, or no date, with site defaults.
+- Due-date options, the same four, for activity types whose table has a
+  `duedate` column (the quiz on Moodle 5.3 and later). The feature is gated on
+  the column, not on the Moodle version. Due dates must be after the open date
+  and no later than the close date.
+- A **Preview** button on both tabs and an editable date table: open, due and
+  close dates on the Activity dates tab, lock dates on the Grade locks tab.
+  Save writes exactly the table's dates.
+- Row validation on Save: open date required, close after open, due after open
+  and no later than close, lock date required. If any row fails, nothing is
+  written and the edited values are kept with an error on each wrong field.
+- Stale-table protection: changing a date-affecting setting or the selection
+  after a Preview shows a "Settings changed" bar and disables the Save buttons;
+  the server refuses a save whose settings no longer match the table.
+
 ### Changed
 
 - Declare Moodle 5.3 support.
+- Preview replaces Refresh and saves nothing; Refresh saved the settings and
+  selection.
+- "At the end of this session" now closes an activity when the next session
+  opens. 2.0.0 closed it the day before, at the finish date's time of day. The
+  finish date no longer sets any time of day.
+- Date arithmetic is done in the user's timezone, so "+N days" keeps the local
+  time of day across a daylight-saving change.
+- The upgrade converts `stayavailable` into the new close option, per course
+  (1 becomes `none`, 0 becomes `session`) and in the site defaults, then drops
+  the column and the setting.
+
+### Removed
+
+- The "Stay available after session finish" option and its site default.
+
+### Fixed
+
+- On Moodle 5.3, the quiz's due date is written together with its open and
+  close dates and kept between them, and "Reset unselected" clears it
+  (MDL-82521 made `quiz.duedate` a column the tool left stale).
 
 ## [2.0.0] - 2026-09-27
 
