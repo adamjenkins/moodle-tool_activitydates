@@ -38,7 +38,8 @@ require_once($CFG->libdir . '/formslib.php');
  * The controls shown depend on the customdata flags canmanage, canlocks,
  * hasdates and hasdue: the due and close settings and the Advanced section need
  * canmanage and a type with dates (due also needs hasdue), and the Grade locks
- * section needs canlocks. It is collapsed while the lock mode is none.
+ * section needs canlocks. It is collapsed while the lock mode is none. The
+ * grade-lock note options are per activity, in the table.
  *
  * The editable date table is rendered outside this form; its inputs carry
  * form="self::FORM_ID" so they post with it.
@@ -167,14 +168,6 @@ class activitydates_form extends \moodleform {
             $mform->setExpanded('gradelocksheader', $defaults->lockmode !== schedule::MODE_NONE);
             $this->add_mode_elements('lock', $defaults);
 
-            $mform->addElement('advcheckbox', 'shownote', get_string('shownote', 'tool_activitydates'));
-            $mform->addHelpButton('shownote', 'shownote', 'tool_activitydates');
-            $mform->setDefault('shownote', $defaults->shownote);
-
-            $mform->addElement('advcheckbox', 'shownotecoursepage', get_string('shownotecoursepage', 'tool_activitydates'));
-            $mform->addHelpButton('shownotecoursepage', 'shownotecoursepage', 'tool_activitydates');
-            $mform->setDefault('shownotecoursepage', $defaults->shownotecoursepage);
-
             $mform->addElement('advcheckbox', 'lockresetunselected', get_string('lockresetunselected', 'tool_activitydates'));
             $mform->addHelpButton('lockresetunselected', 'lockresetunselected', 'tool_activitydates');
             $mform->setDefault('lockresetunselected', $defaults->lockresetunselected);
@@ -194,6 +187,8 @@ class activitydates_form extends \moodleform {
             $mform->setDefault('resetunselected', $defaults->resetunselected);
         }
 
+        // The buttons stay outside every collapsible section
+        // (tool_activitydates\local\action_buttons closes the last header).
         $this->add_action_buttons();
     }
 
@@ -284,8 +279,6 @@ class activitydates_form extends \moodleform {
         }
         $defaults->hideunselected = (int) ($settings->hideunselected ?? $config('hideunselected', 0));
         $defaults->resetunselected = (int) ($settings->resetunselected ?? $config('resetunselected', 0));
-        $defaults->shownote = (int) ($settings->shownote ?? $config('lockshownote', 1));
-        $defaults->shownotecoursepage = (int) ($settings->shownotecoursepage ?? $config('lockshownotecoursepage', 0));
         $defaults->lockresetunselected = (int) ($settings->lockresetunselected ?? 0);
         return $defaults;
     }

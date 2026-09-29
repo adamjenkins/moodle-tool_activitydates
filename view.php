@@ -113,12 +113,48 @@ if ($mform->is_cancelled()) {
 
 // Whether the table edits lock dates for these settings.
 $haslocks = fn(stdClass $settings): bool => $showlocks && $settings->lockmode !== schedule::MODE_NONE;
+// The fields whose inputs this user may edit, for these settings.
+$editablefor = fn(stdClass $settings): array => [
+    'timeopen' => $editdates,
+    'duedate' => $editdates && $hasdue,
+    'timeclose' => $editdates,
+    'timelock' => $haslocks($settings),
+];
+// The fields whose Fix flag this user may set (activitydates::save_fixed() checks again).
+$fixable = [
+    'timeopen' => $editdates,
+    'duedate' => $editdates && $hasdue,
+    'timeclose' => $editdates,
+    'timelock' => $showlocks,
+];
+// Each posted input is read only when this user may edit it.
+$readrows = function (array $editable): array {
+    $inputs = [];
+    foreach ($editable as $field => $read) {
+        $inputs[$field] = $read ? optional_param_array($field . '_rows', [], PARAM_RAW_TRIMMED) : [];
+    }
+    return $inputs;
+};
+$readfix = function () use ($fixable): array {
+    $posted = [];
+    foreach ($fixable as $field => $read) {
+        $posted[$field] = $read ? optional_param_array('fix_' . $field, [], PARAM_BOOL) : [];
+    }
+    return $posted;
+};
+$readnotes = fn(string $name): array => array_values(array_intersect(
+    $validcmids,
+    array_map('intval', optional_param_array($name, [], PARAM_INT))
+));
 
-// Null renders the engine's proposals; an array re-renders the teacher's own values.
-$rowinputs = null;
+// What the table's inputs show (see preview_rows::dates()).
+$source = preview_rows::SOURCE_CURRENT;
+$rowinputs = [];
 $rowerrors = [];
-// Null renders the saved note ticks; an array re-renders the posted ones.
+// Null renders the saved Fix flags and note ticks; arrays re-render the posted ones.
+$fixposted = null;
 $notecmids = null;
+$coursenotecmids = null;
 
 if ($fromform = $mform->get_data()) {
     // Preview (and a modtype change) builds the table from the submitted settings
@@ -128,11 +164,13 @@ if ($fromform = $mform->get_data()) {
     $settings = activitydates::settings_from_form($submitted, $courseid, (int) $loaded->id);
     $selected = activitydates::selected_from_form($submitted, $validcmids);
     if ($canlocks) {
-        $notecmids = array_values(array_intersect(
-            $validcmids,
-            array_map('intval', optional_param_array('shownote_cmids', [], PARAM_INT))
-        ));
+        $notecmids = $readnotes('shownote_cmids');
+        $coursenotecmids = $readnotes('shownotecourse_cmids');
     }
+    $rowinputs = $readrows($editablefor($settings));
+    $fixposted = $readfix();
+    // Proposals, with the fixed fields kept.
+    $source = preview_rows::SOURCE_PREVIEW;
 
     if (isset($fromform->submitbutton) || isset($fromform->submitbutton2)) {
         $posted = optional_param('tablefingerprint', '', PARAM_ALPHANUM);
@@ -148,45 +186,26 @@ if ($fromform = $mform->get_data()) {
                     $allowed[(int) $row['id']] = true;
                 }
             }
-            // Each input is read only when this user may edit it.
-            $readrows = fn(bool $read, string $name): array =>
-                $read ? optional_param_array($name, [], PARAM_RAW_TRIMMED) : [];
-            $inputs = [
-                'timeopen' => $readrows($editdates, 'timeopen_rows'),
-                'duedate' => $readrows($editdates && $hasdue, 'duedate_rows'),
-                'timeclose' => $readrows($editdates, 'timeclose_rows'),
-                'timelock' => $readrows($haslocks($settings), 'timelock_rows'),
-            ];
+            $editable = $editablefor($settings);
             [$values, $rowerrors] = datefields::validate_dates(
-                $inputs,
+                $rowinputs,
                 $allowed,
-                $editdates && $hasdue,
-                $haslocks($settings),
+                $editable['duedate'],
+                $editable['timelock'],
                 $tz
             );
             if ($rowerrors) {
                 \core\notification::error(get_string('errorrows', 'tool_activitydates', count($rowerrors)));
-                $rowinputs = $inputs;
+                $source = preview_rows::SOURCE_POSTED;
             } else {
-                $coursenotecmids = [];
-                if ($canlocks) {
-                    $coursenotecmids = array_values(array_intersect(
-                        $validcmids,
-                        array_map('intval', optional_param_array('shownotecourse_cmids', [], PARAM_INT))
-                    ));
-                }
-                // The Fix flags; save() keeps only those of selected rows and permitted fields.
-                $fixposted = [];
-                foreach (activitydates::FIELDS as $field) {
-                    $fixposted[$field] = optional_param_array('fix_' . $field, [], PARAM_BOOL);
-                }
+                // The manager keeps only the Fix flags of selected rows and permitted fields.
                 $result = $manager->save(
                     $submitted,
                     $courseid,
                     $tabledata,
                     $values,
                     $notecmids ?? [],
-                    $coursenotecmids,
+                    $coursenotecmids ?? [],
                     $fixposted,
                     $canmanage,
                     $canlocks,
@@ -212,21 +231,24 @@ if ($fromform = $mform->get_data()) {
                 if (isset($fromform->submitbutton2)) {
                     redirect(new moodle_url('/course/view.php', ['id' => $courseid]));
                 }
-                // Re-render with the saved note ticks and fresh current dates.
+                // Re-render the saved values, flags and note ticks.
+                $source = preview_rows::SOURCE_CURRENT;
+                $rowinputs = [];
+                $fixposted = null;
                 $notecmids = null;
+                $coursenotecmids = null;
             }
         }
     }
 } else if ($mform->is_submitted() && ($submitted = $mform->get_submitted_data())) {
     // Settings that failed validation: keep the teacher's ticks, and show the
-    // loaded settings' table until the settings are corrected.
+    // loaded settings' table, with the current values, until the settings are corrected.
     $selected = activitydates::selected_from_form($submitted, $validcmids);
     if ($canlocks) {
-        $notecmids = array_values(array_intersect(
-            $validcmids,
-            array_map('intval', optional_param_array('shownote_cmids', [], PARAM_INT))
-        ));
+        $notecmids = $readnotes('shownote_cmids');
+        $coursenotecmids = $readnotes('shownotecourse_cmids');
     }
+    $fixposted = $readfix();
 } else if ($canmanage) {
     $selected = activitydates::saved_selection((int) $settings->id, $validcmids);
 } else {
@@ -243,7 +265,18 @@ if ($fromform = $mform->get_data()) {
     $selected = array_values(array_intersect($validcmids, $lockcmids));
 }
 
-$tabledata = $manager->get_table_data($settings, $selected, $hasdates);
+// On Preview the engine keeps the ticked fields at their posted (or current) values.
+$enginefixed = null;
+if ($source === preview_rows::SOURCE_PREVIEW) {
+    $enginefixed = preview_rows::engine_fixed(
+        $manager->get_table_data($settings, $selected, $hasdates),
+        $fixposted,
+        $rowinputs,
+        $fixable,
+        $tz
+    );
+}
+$tabledata = $manager->get_table_data($settings, $selected, $hasdates, $enginefixed);
 
 dates_viewed::create(['context' => $context])->trigger();
 if ($canlocks) {
@@ -254,32 +287,36 @@ $mform->set_data($settings);
 $mform->set_selection($selected);
 
 $showquestioncount = $modtype === 'quiz';
-// Open and close (and due) for a type with dates; Locked for a graded type the user may lock.
-$editcolspan = ($hasdates ? 2 + (int) $hasdue : 0) + (int) $showlocks;
+// The Dates column's fields: open, (due) and close for a type with dates, Locked for a
+// graded type the user may lock.
+$fields = $hasdates ? array_merge(['timeopen'], $hasdue ? ['duedate'] : [], ['timeclose']) : [];
+if ($showlocks) {
+    $fields[] = 'timelock';
+}
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'tool_activitydates'));
 $mform->display();
 echo $OUTPUT->render_from_template('tool_activitydates/modtable', [
     'formid' => activitydates_form::FORM_ID,
     'fingerprint' => fingerprint::dates($settings, $selected, $hasdue, $haslocks($settings)),
-    'hasdates' => $hasdates,
-    'hasdue' => $hasdue,
     'showlocks' => $showlocks,
-    'tabledata' => preview_rows::dates(
-        $tabledata,
-        $rowinputs,
-        $rowerrors,
-        $tz,
-        $editdates,
-        $haslocks($settings),
-        $notecmids
-    ),
+    'fixhelp' => (new \core\output\help_icon('fix', 'tool_activitydates'))->export_for_template($OUTPUT),
+    'tabledata' => preview_rows::dates($tabledata, $tz, [
+        'source' => $source,
+        'fields' => $fields,
+        'editable' => $editablefor($settings),
+        'fixable' => $fixable,
+        'rowinputs' => $rowinputs,
+        'rowerrors' => $rowerrors,
+        'fixposted' => $fixposted,
+        'notecmids' => $notecmids,
+        'coursenotecmids' => $coursenotecmids,
+    ]),
     'modname' => $modtype,
     'showquestioncount' => $showquestioncount,
-    // The select, name, description and current columns, the date columns, plus
-    // questions and show note when shown.
-    'colcount' => 4 + (int) $showquestioncount + $editcolspan + (int) $showlocks,
-    'editcolspan' => $editcolspan,
+    // The select, name, description, Dates and status columns, plus questions and
+    // the grade-lock note when shown.
+    'colcount' => 5 + (int) $showquestioncount + (int) $showlocks,
 ]);
 $PAGE->requires->js_call_amd('tool_activitydates/modform', 'init');
 $PAGE->requires->js_call_amd('tool_activitydates/previewtable', 'init', [

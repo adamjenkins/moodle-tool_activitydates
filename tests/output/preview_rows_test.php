@@ -31,108 +31,278 @@ use PHPUnit\Framework\Attributes\CoversClass;
  */
 #[CoversClass(preview_rows::class)]
 final class preview_rows_test extends \advanced_testcase {
+    /** @var string[] every field. */
+    private const ALL = ['timeopen', 'duedate', 'timeclose', 'timelock'];
+
     /**
-     * A get_table_data()-shaped table: a header, a scheduled row and an unselected row.
+     * A timestamp in Europe/London.
      *
-     * @param int $open the proposed open date of the scheduled row.
+     * @param string $date the wall-clock date and time.
+     * @return int
+     */
+    private function ts(string $date): int {
+        return (new \DateTimeImmutable($date, new \DateTimeZone('Europe/London')))->getTimestamp();
+    }
+
+    /**
+     * A get_table_data()-shaped table: a header, then
+     * 11 selected and scheduled, 12 unselected, 13 selected but not scheduled.
+     *
      * @return array
      */
-    private function table(int $open): array {
+    private function table(): array {
         $row = [
             'isheader' => false,
             'cm' => new \stdClass(),
-            'name' => 'Quiz',
             'intro' => '',
             'questioncount' => 1,
-            'timeopen' => 0,
-            'duedate' => null,
+            'hasgradeitem' => true,
+            'shownote' => false,
+            'shownotecoursepage' => false,
+            'fixed' => array_fill_keys(self::ALL, false),
+        ];
+        $current = [
+            'timeopen' => $this->ts('2029-12-01 09:00'),
+            'duedate' => 0,
             'timeclose' => 0,
+            'timelock' => $this->ts('2029-12-20 09:00'),
         ];
         return [
             ['isheader' => true, 'dates' => null],
-            ['id' => 11, 'selected' => 'checked', 'scheduled' => true, 'status' => '',
-                'proposed' => ['timeopen' => $open, 'duedate' => null, 'timeclose' => $open + DAYSECS]] + $row,
-            ['id' => 12, 'selected' => '', 'scheduled' => false, 'status' => 'rowstatus_notscheduled',
-                'proposed' => null] + $row,
+            ['id' => 11, 'name' => 'Quiz A', 'selected' => 'checked', 'scheduled' => true, 'status' => '',
+                'current' => $current,
+                'proposed' => [
+                    'timeopen' => $this->ts('2030-01-07 09:00'),
+                    'duedate' => 0,
+                    'timeclose' => $this->ts('2030-01-08 09:00'),
+                    'timelock' => $this->ts('2030-01-09 09:00'),
+                ]] + $row,
+            ['id' => 12, 'name' => 'Quiz B', 'selected' => '', 'scheduled' => false, 'status' => 'rowstatus_notscheduled',
+                'current' => $current, 'proposed' => null] + $row,
+            ['id' => 13, 'name' => 'Quiz C', 'selected' => 'checked', 'scheduled' => false,
+                'status' => 'rowstatus_notscheduled', 'current' => $current, 'proposed' => null] + $row,
         ];
     }
 
-    public function test_proposals_rendered_as_input_values(): void {
-        $tz = new \DateTimeZone('Europe/London');
-        $open = (new \DateTimeImmutable('2030-01-07 09:00', $tz))->getTimestamp();
-        $rows = preview_rows::dates($this->table($open), null, [], $tz);
+    /**
+     * The options of a user with both capabilities, lock mode in use.
+     *
+     * @param array $options options to override.
+     * @return array
+     */
+    private function options(array $options = []): array {
+        return $options + [
+            'fields' => ['timeopen', 'timeclose', 'timelock'],
+            'editable' => array_fill_keys(self::ALL, true),
+            'fixable' => array_fill_keys(self::ALL, true),
+        ];
+    }
 
-        $this->assertCount(3, $rows);
+    /**
+     * One row's field entries, keyed by field.
+     *
+     * @param array $row a template row.
+     * @return array
+     */
+    private function fields(array $row): array {
+        return array_column($row['fields'], null, 'field');
+    }
+
+    public function test_current_values_on_load(): void {
+        $tz = new \DateTimeZone('Europe/London');
+        $rows = preview_rows::dates($this->table(), $tz, $this->options());
+
+        $this->assertCount(4, $rows);
         $this->assertArrayNotHasKey('cm', $rows[1]);
         $this->assertArrayNotHasKey('proposed', $rows[1]);
         $this->assertTrue($rows[1]['editable']);
-        $this->assertSame('2030-01-07T09:00', $rows[1]['timeopenvalue']);
-        $this->assertSame('2030-01-08T09:00', $rows[1]['timeclosevalue']);
-        $this->assertSame('', $rows[1]['duedatevalue']);
-        $this->assertFalse($rows[1]['timeopeninvalid']);
+        $fields = $this->fields($rows[1]);
+        $this->assertSame(['timeopen', 'timeclose', 'timelock'], array_keys($fields));
+        // The current values, not the proposals; an unset date is empty.
+        $this->assertSame('2029-12-01T09:00', $fields['timeopen']['value']);
+        $this->assertSame('', $fields['timeclose']['value']);
+        $this->assertSame('2029-12-20T09:00', $fields['timelock']['value']);
+        $this->assertFalse($fields['timeopen']['disabled']);
+        $this->assertFalse($fields['timeopen']['fixdisabled']);
+        $this->assertSame(get_string('open', 'tool_activitydates') . ': Quiz A', $fields['timeopen']['inputlabel']);
+        $this->assertSame(
+            get_string('fixfield', 'tool_activitydates', (object) ['field' => get_string('open', 'tool_activitydates'),
+                'name' => 'Quiz A']),
+            $fields['timeopen']['fixlabel']
+        );
 
-        $this->assertFalse($rows[2]['editable']);
-        $this->assertSame('', $rows[2]['timeopenvalue']);
-        $this->assertSame(get_string('rowstatus_notscheduled', 'tool_activitydates'), $rows[2]['statustext']);
+        // Unselected, and selected but not scheduled: disabled, showing the current value.
+        foreach ([2, 3] as $index) {
+            $fields = $this->fields($rows[$index]);
+            $this->assertFalse($rows[$index]['editable']);
+            $this->assertTrue($fields['timeopen']['disabled']);
+            $this->assertSame('2029-12-01T09:00', $fields['timeopen']['value']);
+            $this->assertSame(get_string('rowstatus_notscheduled', 'tool_activitydates'), $rows[$index]['statustext']);
+        }
+        // Fix follows the selection, not the schedule.
+        $this->assertTrue($this->fields($rows[2])['timeopen']['fixdisabled']);
+        $this->assertFalse($this->fields($rows[3])['timeopen']['fixdisabled']);
+    }
+
+    public function test_preview_keeps_fixed_fields(): void {
+        $tz = new \DateTimeZone('Europe/London');
+        $table = $this->table();
+        // A saved flag on the unselected row.
+        $table[2]['fixed']['timeclose'] = true;
+        $rows = preview_rows::dates($table, $tz, $this->options([
+            'source' => preview_rows::SOURCE_PREVIEW,
+            'rowinputs' => [
+                'timeopen' => [11 => '2029-06-01T10:00', 12 => '2029-06-01T10:00'],
+                'timeclose' => [11 => '2030-02-01T10:00'],
+            ],
+            'fixposted' => ['timeclose' => [11 => 1, 12 => 1], 'timelock' => [11 => 1]],
+        ]));
+
+        $fields = $this->fields($rows[1]);
+        // Not fixed: the proposal, whatever was posted.
+        $this->assertSame('2030-01-07T09:00', $fields['timeopen']['value']);
+        $this->assertFalse($fields['timeopen']['fixed']);
+        // Fixed: the posted value.
+        $this->assertSame('2030-02-01T10:00', $fields['timeclose']['value']);
+        $this->assertTrue($fields['timeclose']['fixed']);
+        // Fixed, nothing posted (the input was disabled): the current value.
+        $this->assertSame('2029-12-20T09:00', $fields['timelock']['value']);
+        $this->assertTrue($fields['timelock']['fixed']);
+
+        // The unselected row keeps its saved flag, and its current value.
+        $fields = $this->fields($rows[2]);
+        $this->assertTrue($fields['timeclose']['fixed']);
+        $this->assertFalse($fields['timeopen']['fixed']);
+        $this->assertSame('2029-12-01T09:00', $fields['timeopen']['value']);
     }
 
     public function test_posted_values_and_errors_kept(): void {
         $tz = new \DateTimeZone('Europe/London');
-        $open = (new \DateTimeImmutable('2030-01-07 09:00', $tz))->getTimestamp();
-        $inputs = [
-            'timeopen' => [11 => '2030-02-30T10:00', 12 => '2030-01-01T10:00'],
-            'duedate' => [],
-            'timeclose' => [11 => ''],
-        ];
-        $errors = [11 => ['timeopen' => 'errorinvaliddate']];
-        $rows = preview_rows::dates($this->table($open), $inputs, $errors, $tz);
+        $rows = preview_rows::dates($this->table(), $tz, $this->options([
+            'source' => preview_rows::SOURCE_POSTED,
+            'rowinputs' => [
+                'timeopen' => [11 => '2030-02-30T10:00', 12 => '2030-01-01T10:00'],
+                'timeclose' => [11 => ''],
+            ],
+            'rowerrors' => [11 => ['timeopen' => 'errorinvaliddate'], 12 => ['timeopen' => 'errorinvaliddate']],
+            'fixposted' => [],
+        ]));
 
         // The teacher's own (invalid) value is re-rendered, not the proposal.
-        $this->assertSame('2030-02-30T10:00', $rows[1]['timeopenvalue']);
-        $this->assertSame('', $rows[1]['timeclosevalue']);
-        $this->assertTrue($rows[1]['timeopeninvalid']);
-        $this->assertSame(get_string('errorinvaliddate', 'tool_activitydates'), $rows[1]['timeopenerror']);
-        $this->assertFalse($rows[1]['timecloseinvalid']);
-        // A posted value for a non-editable row is not echoed.
-        $this->assertSame('', $rows[2]['timeopenvalue']);
+        $fields = $this->fields($rows[1]);
+        $this->assertSame('2030-02-30T10:00', $fields['timeopen']['value']);
+        $this->assertTrue($fields['timeopen']['invalid']);
+        $this->assertSame(get_string('errorinvaliddate', 'tool_activitydates'), $fields['timeopen']['error']);
+        $this->assertSame('', $fields['timeclose']['value']);
+        $this->assertFalse($fields['timeclose']['invalid']);
+        // A posted value or error for a disabled row is not echoed.
+        $fields = $this->fields($rows[2]);
+        $this->assertSame('2029-12-01T09:00', $fields['timeopen']['value']);
+        $this->assertFalse($fields['timeopen']['invalid']);
     }
 
-    public function test_edit_flags_and_lock_column(): void {
+    public function test_disabled_by_capability_and_lock(): void {
         $tz = new \DateTimeZone('Europe/London');
-        $open = (new \DateTimeImmutable('2030-01-07 09:00', $tz))->getTimestamp();
-        $table = $this->table($open);
-        $table[1]['proposed']['timelock'] = $open + 2 * DAYSECS;
-        $table[1]['hasgradeitem'] = true;
-        $table[1]['locktime'] = $open - DAYSECS;
-        $table[1]['shownote'] = true;
-        $table[2]['hasgradeitem'] = true;
-        $table[2]['locktime'] = 0;
-        $table[2]['shownote'] = false;
+        $table = $this->table();
 
-        // Locks only: open and close are read-only, the lock date is an input.
-        $rows = preview_rows::dates($table, null, [], $tz, false, true);
-        $this->assertFalse($rows[1]['editdates']);
-        $this->assertTrue($rows[1]['editlock']);
-        $this->assertSame('', $rows[1]['timeopenvalue']);
-        $this->assertSame('2030-01-09T09:00', $rows[1]['timelockvalue']);
-        $this->assertSame('2030-01-06T09:00', $rows[1]['locktimeattr']);
-        $this->assertTrue($rows[1]['shownote']);
-        $this->assertFalse($rows[2]['editlock']);
-        $this->assertSame('', $rows[2]['locktimeattr']);
+        // Locks only, lock mode in use: open and close disabled, their Fix too.
+        $datesoff = ['timeopen' => false, 'duedate' => false, 'timeclose' => false, 'timelock' => true];
+        $rows = preview_rows::dates($table, $tz, $this->options([
+            'source' => preview_rows::SOURCE_PREVIEW,
+            'editable' => $datesoff,
+            'fixable' => $datesoff,
+            'fixposted' => [],
+        ]));
+        $fields = $this->fields($rows[1]);
+        $this->assertTrue($fields['timeopen']['disabled']);
+        $this->assertSame('2029-12-01T09:00', $fields['timeopen']['value']);
+        $this->assertTrue($fields['timeopen']['fixdisabled']);
+        $this->assertFalse($fields['timeopen']['fixtoggle']);
+        $this->assertFalse($fields['timelock']['disabled']);
+        $this->assertSame('2030-01-09T09:00', $fields['timelock']['value']);
+        $this->assertTrue($fields['timelock']['fixtoggle']);
 
-        // Dates only (or lock mode none): the lock date is read-only.
-        $rows = preview_rows::dates($table, null, [], $tz, true, false);
-        $this->assertTrue($rows[1]['editdates']);
-        $this->assertFalse($rows[1]['editlock']);
-        $this->assertSame('', $rows[1]['timelockvalue']);
+        // Lock mode none: Locked is disabled with its current value, but can still be fixed.
+        $rows = preview_rows::dates($table, $tz, $this->options([
+            'source' => preview_rows::SOURCE_PREVIEW,
+            'editable' => ['timelock' => false] + array_fill_keys(self::ALL, true),
+            'fixposted' => [],
+        ]));
+        $fields = $this->fields($rows[1]);
+        $this->assertTrue($fields['timelock']['disabled']);
+        $this->assertSame('2029-12-20T09:00', $fields['timelock']['value']);
+        $this->assertFalse($fields['timelock']['fixdisabled']);
 
         // No grade item: never a lock input.
         $table[1]['hasgradeitem'] = false;
-        $this->assertFalse(preview_rows::dates($table, null, [], $tz, true, true)[1]['editlock']);
+        $fields = $this->fields(preview_rows::dates($table, $tz, $this->options())[1]);
+        $this->assertTrue($fields['timelock']['disabled']);
 
-        // Posted note ticks win over the saved ones.
-        $rows = preview_rows::dates($table, null, [], $tz, true, true, [12]);
-        $this->assertFalse($rows[1]['shownote']);
-        $this->assertTrue($rows[2]['shownote']);
+        // Only the present fields, in display order.
+        $rows = preview_rows::dates($table, $tz, $this->options(['fields' => ['timelock', 'duedate', 'timeopen']]));
+        $this->assertSame(['timeopen', 'duedate', 'timelock'], array_column($rows[1]['fields'], 'field'));
+    }
+
+    public function test_note_ticks(): void {
+        $tz = new \DateTimeZone('Europe/London');
+        $table = $this->table();
+        $table[1]['shownote'] = true;
+        $table[2]['shownotecoursepage'] = true;
+
+        // Saved ticks; the unselected row's are disabled.
+        $rows = preview_rows::dates($table, $tz, $this->options());
+        $this->assertSame([true, false, false], array_column(array_slice($rows, 1), 'shownote'));
+        $this->assertSame([false, true, false], array_column(array_slice($rows, 1), 'shownotecoursepage'));
+        $this->assertSame([false, true, false], array_column(array_slice($rows, 1), 'notedisabled'));
+
+        // Posted ticks win on selected rows; the unselected row keeps its saved ones.
+        $rows = preview_rows::dates($table, $tz, $this->options(['notecmids' => [13, 12], 'coursenotecmids' => [11]]));
+        $this->assertSame([false, false, true], array_column(array_slice($rows, 1), 'shownote'));
+        $this->assertSame([true, true, false], array_column(array_slice($rows, 1), 'shownotecoursepage'));
+    }
+
+    public function test_engine_fixed(): void {
+        $tz = new \DateTimeZone('Europe/London');
+        $table = $this->table();
+        $table[1]['fixed']['timelock'] = true;
+        $table[2]['fixed']['timeclose'] = true;
+        $table[3]['fixed']['timeopen'] = true;
+        $fixable = ['timeopen' => true, 'duedate' => true, 'timeclose' => true, 'timelock' => false];
+
+        $fixed = preview_rows::engine_fixed(
+            $table,
+            [
+                'timeopen' => [11 => 1],
+                'timeclose' => [11 => 1, 12 => 1],
+                'duedate' => [11 => 1],
+                // Not fixable by this user: the saved flags count.
+                'timelock' => [13 => 1],
+            ],
+            ['timeopen' => [11 => '2030-03-01T08:00'], 'duedate' => [11 => 'garbage']],
+            $fixable,
+            $tz
+        );
+        $this->assertEquals([
+            11 => [
+                // Posted.
+                'timeopen' => $this->ts('2030-03-01 08:00'),
+                // Ticked, nothing posted: current.
+                'timeclose' => 0,
+                // Not fixable, saved flag: current.
+                'timelock' => $this->ts('2029-12-20 09:00'),
+                // The due date's value does not parse: unfixed for the calculation.
+            ],
+            // Unselected: the saved flag, not the posted tick.
+            12 => ['timeclose' => 0],
+            // Selected and fixable, not ticked: the saved flag is dropped.
+        ], $fixed);
+
+        // Saved flags only (fixposted null).
+        $fixed = preview_rows::engine_fixed($table, null, [], $fixable, $tz);
+        $this->assertEquals([
+            11 => ['timelock' => $this->ts('2029-12-20 09:00')],
+            12 => ['timeclose' => 0],
+            13 => ['timeopen' => $this->ts('2029-12-01 09:00')],
+        ], $fixed);
     }
 }

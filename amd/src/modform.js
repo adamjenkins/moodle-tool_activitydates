@@ -15,7 +15,8 @@
 
 /**
  * Mirror the visible activity checkboxes into the hidden form checkboxes,
- * drive the select-all and toggle-all-notes checkboxes, and preview
+ * enable each row's Fix and note checkboxes only while the row is selected,
+ * drive the select-all and the two note select-all checkboxes, and preview
  * automatically when the activity type is changed.
  *
  * @module     tool_activitydates/modform
@@ -37,15 +38,37 @@ export const init = () => {
         });
     }
 
-    // The Show note column's header checkbox ticks or unticks every row's note.
-    const toggleNotesCheckbox = document.getElementById('id_togglenotes');
-    if (toggleNotesCheckbox) {
-        toggleNotesCheckbox.addEventListener('click', e => {
-            document.querySelectorAll("[id^='id_shownote_']").forEach(checkbox => {
-                checkbox.checked = e.target.checked;
+    // The Grade-lock note column's header checkboxes tick or untick the activity-page
+    // or the course-page note of every selected row (the others are disabled).
+    [
+        ['id_togglenotes', 'shownote_cmids[]'],
+        ['id_togglecoursenotes', 'shownotecourse_cmids[]'],
+    ].forEach(([toggleid, name]) => {
+        const toggle = document.getElementById(toggleid);
+        if (!toggle) {
+            return;
+        }
+        toggle.addEventListener('click', e => {
+            document.querySelectorAll('input[name="' + name + '"]').forEach(checkbox => {
+                if (!checkbox.disabled) {
+                    checkbox.checked = e.target.checked;
+                }
             });
         });
-    }
+    });
+
+    /**
+     * Enable a row's Fix and note checkboxes only while the row is selected. Their
+     * values are saved for selected rows only, and a disabled checkbox is not posted.
+     *
+     * @param {string} cmid the course module id.
+     * @param {boolean} selected whether the row is selected.
+     */
+    const setRowControls = (cmid, selected) => {
+        document.querySelectorAll('[data-rowcontrol="' + cmid + '"]').forEach(control => {
+            control.disabled = !selected;
+        });
+    };
 
     const selectAllCheckBox = document.getElementById('id_selectall');
     // Guard against a course with no activities of the selected type, where the
@@ -62,6 +85,7 @@ export const init = () => {
         // Visible table checkboxes.
         document.querySelectorAll("[id^='id_cmid_']").forEach(checkbox => {
             checkbox.checked = e.target.checked ? true : false;
+            setRowControls(checkbox.id.split('_')[2], checkbox.checked);
         });
     });
 
@@ -81,6 +105,7 @@ export const init = () => {
         const checkboxid = 'id_activitygroup_activity_' + id;
         const checkbox = document.getElementById(checkboxid);
         checkbox.checked = e.currentTarget.checked;
+        setRowControls(id, e.currentTarget.checked);
         configureSelectAll();
     }
 

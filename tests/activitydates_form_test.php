@@ -301,14 +301,17 @@ final class activitydates_form_test extends \advanced_testcase {
         $this->resetAfterTest();
         $this->setAdminUser();
         $datecontrols = ['name="closemode"', 'name="closedays"', 'name="hideunselected"', 'name="resetunselected"'];
-        $lockcontrols = ['name="lockmode"', 'name="lockdays"', 'name="lockdate[day]"', 'name="shownote"',
-            'name="shownotecoursepage"', 'name="lockresetunselected"', 'id="id_gradelocksheader"'];
+        $lockcontrols = ['name="lockmode"', 'name="lockdays"', 'name="lockdate[day]"', 'name="lockresetunselected"',
+            'id="id_gradelocksheader"'];
 
         // Both capabilities: everything.
         $html = $this->render_with('quiz', ['canmanage' => true, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]);
         foreach (array_merge($datecontrols, $lockcontrols) as $control) {
             $this->assertStringContainsString($control, $html);
         }
+        // The grade-lock note options are per activity, in the table, not in the form.
+        $this->assertStringNotContainsString('name="shownote"', $html);
+        $this->assertStringNotContainsString('name="shownotecoursepage"', $html);
 
         // Without :manage: no date controls, the lock controls stay.
         $html = $this->render_with('quiz', ['canmanage' => false, 'canlocks' => true, 'hasdates' => true, 'hasdue' => true]);
@@ -344,7 +347,7 @@ final class activitydates_form_test extends \advanced_testcase {
             $this->assertStringNotContainsString('name="' . $name . '"', $html);
         }
         $this->assertStringNotContainsString('id="id_advancedheader"', $html);
-        foreach (['lockmode', 'lockdays', 'shownote', 'shownotecoursepage', 'lockresetunselected', 'sessionlength'] as $name) {
+        foreach (['lockmode', 'lockdays', 'lockresetunselected', 'sessionlength'] as $name) {
             $this->assertStringContainsString('name="' . $name . '"', $html);
         }
     }
@@ -383,6 +386,52 @@ final class activitydates_form_test extends \advanced_testcase {
         foreach ($cases as [$modtype, $flags]) {
             $html = $this->render_with($modtype, $flags, ['lockmode' => 'none']);
             $this->assertSame([], $this->button_sections($html), $modtype . ' ' . json_encode($flags));
+        }
+    }
+
+    /**
+     * The end offsets of the rendered form's collapsible sections.
+     *
+     * @param string $html the rendered form.
+     * @return int[] the offset just after each collapsible fieldset's closing tag.
+     */
+    private function collapsible_section_ends(string $html): array {
+        preg_match_all('~<fieldset\b[^>]*>|</fieldset>~', $html, $tags, PREG_OFFSET_CAPTURE);
+        $stack = [];
+        $ends = [];
+        foreach ($tags[0] as [$tag, $offset]) {
+            if ($tag !== '</fieldset>') {
+                $stack[] = str_contains($tag, 'collapsible');
+                continue;
+            }
+            $this->assertNotEmpty($stack, 'Unbalanced </fieldset>');
+            if (array_pop($stack)) {
+                $ends[] = $offset + strlen($tag);
+            }
+        }
+        $this->assertSame([], $stack, 'Unclosed <fieldset>');
+        return $ends;
+    }
+
+    public function test_buttons_outside_sections(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $cases = [
+            ['quiz', ['canmanage' => true, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
+            ['quiz', ['canmanage' => false, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
+            ['assign', ['canmanage' => true, 'canlocks' => true, 'hasdates' => false, 'hasdue' => false]],
+            ['quiz', ['canmanage' => true, 'canlocks' => false, 'hasdates' => true, 'hasdue' => false]],
+        ];
+        foreach ($cases as [$modtype, $flags]) {
+            $html = $this->render_with($modtype, $flags, ['lockmode' => 'none']);
+            $label = $modtype . ' ' . json_encode($flags);
+            $ends = $this->collapsible_section_ends($html);
+            // The Activity dates section at least, plus Grade locks and Advanced when shown.
+            $this->assertNotEmpty($ends, $label);
+            $button = strpos($html, 'name="submitbutton"');
+            $this->assertNotFalse($button, $label);
+            // The Save buttons come after the last collapsible section has closed.
+            $this->assertGreaterThan(max($ends), $button, $label);
         }
     }
 

@@ -22,7 +22,9 @@
  * itself. Hints never block submission. Every row is checked when the page
  * loads, so proposals that break a row rule are flagged straight after
  * Preview, and Enter in a table date does not submit the form (it would
- * press Preview and discard the table's edits).
+ * press Preview and discard the table's edits). Disabled dates (fields the
+ * user cannot change) are not checked, and the Fix checkboxes are not watched:
+ * fixing a date does not make the table stale.
  *
  * @module     tool_activitydates/previewtable
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -152,14 +154,14 @@ export const init = (formid, watchednames) => {
         });
 
     /**
-     * Find one row's date input.
+     * Find one row's editable date input.
      *
      * @param {string} cmid the course module id.
      * @param {string} field the date field.
-     * @return {HTMLInputElement|null}
+     * @return {HTMLInputElement|null} null when the row has no such input, or it is disabled.
      */
     const input = (cmid, field) => wrapper.querySelector(
-        'input[data-cmid="' + cmid + '"][data-field="' + field + '"]');
+        'input[data-cmid="' + cmid + '"][data-field="' + field + '"]:not([disabled])');
 
     /**
      * Inputs the server marked invalid for a reason the rules below cannot see
@@ -198,6 +200,8 @@ export const init = (formid, watchednames) => {
         }
         if (hint) {
             hint.textContent = text;
+            // The hint is not the input's sibling, so Bootstrap does not show it by itself.
+            hint.classList.toggle('d-block', invalid);
         }
     };
 
@@ -253,7 +257,7 @@ export const init = (formid, watchednames) => {
         Object.entries(rowErrors(cmid)).forEach(([field, errorkey]) => mark(strings, cmid, field, errorkey));
     };
 
-    const cmids = [...new Set(Array.from(wrapper.querySelectorAll('input[data-field][data-cmid]'))
+    const cmids = [...new Set(Array.from(wrapper.querySelectorAll('input[data-field][data-cmid]:not([disabled])'))
         .map(element => element.dataset.cmid))];
 
     // Keep the server's hints that the rules above would clear.
