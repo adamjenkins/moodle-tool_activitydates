@@ -376,9 +376,9 @@ class activitydates {
      * without a duedate column) get the defaults.
      *
      * The lock fields (lockmode, lockdays, lockdate and lockresetunselected) are
-     * read when present. The note options are per row (see save()), not settings. Absent ones (a user without
-     * :managelocks gets no lock controls) fall back to the course's saved lock
-     * configuration, then to the site defaults.
+     * read when present. Absent ones (a user without :managelocks gets no lock
+     * controls) fall back to the course's saved lock configuration, then to the
+     * site defaults. The note options are per row (see save()), not settings.
      *
      * @param \stdClass $fromform submitted form data.
      * @param int $courseid the course ID.
