@@ -50,7 +50,9 @@ final class datefields {
      *
      * @param string $value the submitted value.
      * @param \DateTimeZone $tz the user's timezone.
-     * @return int|null 0 for ''; null for a malformed or impossible date; else the timestamp.
+     * @return int|null 0 for ''; null for a malformed or impossible date, or one at or before
+     *   the Unix epoch (0 means "no date", and the ordering rules skip values that are not positive);
+     *   else the timestamp.
      */
     public static function from_input(string $value, \DateTimeZone $tz): ?int {
         if ($value === '') {
@@ -64,7 +66,8 @@ final class datefields {
         if ($date === false || $date->format(self::INPUTFORMAT) !== $value) {
             return null;
         }
-        return $date->getTimestamp();
+        $timestamp = $date->getTimestamp();
+        return $timestamp > 0 ? $timestamp : null;
     }
 
     /**

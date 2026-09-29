@@ -88,6 +88,34 @@ final class datefields_test extends \basic_testcase {
     }
 
     /**
+     * Dates at or before the Unix epoch are rejected, so they can neither pass as
+     * "no date" nor skip the ordering rules.
+     */
+    public function test_pre_epoch_rejected(): void {
+        $utc = new \DateTimeZone('UTC');
+        $this->assertNull(datefields::from_input('1969-12-31T23:00', $utc));
+        $this->assertNull(datefields::from_input('1970-01-01T00:00', $utc));
+        $this->assertSame(60, datefields::from_input('1970-01-01T00:01', $utc));
+
+        [$values, $errors] = datefields::validate_dates(
+            self::row(11, '1969-12-31T23:00', '1969-12-31T22:30', '1969-12-31T22:00'),
+            [11 => true],
+            true,
+            $utc
+        );
+        $this->assertSame([], $values);
+        $this->assertSame([11 => [
+            'timeopen' => 'errorinvaliddate',
+            'timeclose' => 'errorinvaliddate',
+            'duedate' => 'errorinvaliddate',
+        ]], $errors);
+
+        [$values, $errors] = datefields::validate_locks(['locktime' => [11 => '1970-01-01T00:00']], [11 => true], $utc);
+        $this->assertSame([], $values);
+        $this->assertSame([11 => ['locktime' => 'errorinvaliddate']], $errors);
+    }
+
+    /**
      * The open date is required.
      */
     public function test_open_required(): void {
