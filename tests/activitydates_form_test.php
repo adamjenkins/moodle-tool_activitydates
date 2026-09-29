@@ -353,6 +353,22 @@ final class activitydates_form_test extends \advanced_testcase {
     }
 
     /**
+     * The capability and type combinations whose rendered form the button tests check.
+     *
+     * @return array [modtype, form flags] pairs.
+     */
+    private static function button_cases(): array {
+        return [
+            // The last section is the collapsed Advanced section.
+            ['quiz', ['canmanage' => true, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
+            // The last section is the Grade locks section, collapsed while there is no lock.
+            ['quiz', ['canmanage' => false, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
+            ['assign', ['canmanage' => true, 'canlocks' => true, 'hasdates' => false, 'hasdue' => false]],
+            ['quiz', ['canmanage' => true, 'canlocks' => false, 'hasdates' => true, 'hasdue' => false]],
+        ];
+    }
+
+    /**
      * The form sections that contain the Save and Cancel buttons.
      *
      * @param string $html the rendered form.
@@ -375,15 +391,7 @@ final class activitydates_form_test extends \advanced_testcase {
     public function test_buttons_outside_collapsible_sections(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
-        $cases = [
-            // The last section is the collapsed Advanced section.
-            ['quiz', ['canmanage' => true, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
-            // The last section is the Grade locks section, collapsed while there is no lock.
-            ['quiz', ['canmanage' => false, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
-            ['assign', ['canmanage' => true, 'canlocks' => true, 'hasdates' => false, 'hasdue' => false]],
-            ['quiz', ['canmanage' => true, 'canlocks' => false, 'hasdates' => true, 'hasdue' => false]],
-        ];
-        foreach ($cases as [$modtype, $flags]) {
+        foreach (self::button_cases() as [$modtype, $flags]) {
             $html = $this->render_with($modtype, $flags, ['lockmode' => 'none']);
             $this->assertSame([], $this->button_sections($html), $modtype . ' ' . json_encode($flags));
         }
@@ -416,13 +424,7 @@ final class activitydates_form_test extends \advanced_testcase {
     public function test_buttons_outside_sections(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
-        $cases = [
-            ['quiz', ['canmanage' => true, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
-            ['quiz', ['canmanage' => false, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
-            ['assign', ['canmanage' => true, 'canlocks' => true, 'hasdates' => false, 'hasdue' => false]],
-            ['quiz', ['canmanage' => true, 'canlocks' => false, 'hasdates' => true, 'hasdue' => false]],
-        ];
-        foreach ($cases as [$modtype, $flags]) {
+        foreach (self::button_cases() as [$modtype, $flags]) {
             $html = $this->render_with($modtype, $flags, ['lockmode' => 'none']);
             $label = $modtype . ' ' . json_encode($flags);
             $ends = $this->collapsible_section_ends($html);

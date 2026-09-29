@@ -42,12 +42,10 @@ final class cleanup_test extends \advanced_testcase {
             $DB->insert_record('tool_activitydates_cmids', (object) ['activitydates' => $datesid, 'coursemoduleid' => 1]);
             $lockid = $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $courseid]);
             $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => 1, 'shownote' => 1]);
-            foreach (['timeopen', 'timelock'] as $field) {
-                $DB->insert_record(
-                    'tool_activitydates_fixed',
-                    (object) ['courseid' => $courseid, 'cmid' => $courseid, 'field' => $field, 'timemodified' => 1]
-                );
-            }
+            $DB->insert_records('tool_activitydates_fixed', array_map(
+                fn($field) => ['courseid' => $courseid, 'cmid' => $courseid, 'field' => $field, 'timemodified' => 1],
+                ['timeopen', 'timelock']
+            ));
         }
 
         $this->assertSame(6, cleanup::orphans());
