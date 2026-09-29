@@ -72,5 +72,101 @@ function xmldb_tool_activitydates_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026092600, 'tool', 'activitydates');
     }
 
+    if ($oldversion < 2026092900) {
+        // Close/due modes and the optional finish date replace stayavailable.
+        $table = new xmldb_table('tool_activitydates');
+        $fields = [
+            new xmldb_field('finishenabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1', 'resetunselected'),
+            new xmldb_field('closemode', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, 'session', 'finishenabled'),
+            new xmldb_field('closedays', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '7', 'closemode'),
+            new xmldb_field('closedate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'closedays'),
+            new xmldb_field('duemode', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, 'none', 'closedate'),
+            new xmldb_field('duedays', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '7', 'duemode'),
+            new xmldb_field('duedate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'duedays'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        // Rows and the site default: stayavailable = 1 becomes "no close date".
+        \tool_activitydates\local\upgrade_helper::convert_stayavailable();
+
+        $field = new xmldb_field('stayavailable');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026092900, 'tool', 'activitydates');
+    }
+
+    if ($oldversion < 2026092901) {
+        // Grade locks move onto the shared schedule: a lock mode replaces the lock
+        // configuration's own type, start, session length and activities per session.
+        $table = new xmldb_table('tool_activitydates_lock');
+        $fields = [
+            new xmldb_field('lockmode', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, 'none', 'resetunselected'),
+            new xmldb_field('lockdays', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '7', 'lockmode'),
+            new xmldb_field('lockdate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'lockdays'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+        foreach (['modtype', 'schedulestart', 'sessionlength', 'activitiespersession'] as $name) {
+            $field = new xmldb_field($name);
+            if ($dbman->field_exists($table, $field)) {
+                $dbman->drop_field($table, $field);
+            }
+        }
+
+        // The session finish date is off by default; saved rows keep their value.
+        $table = new xmldb_table('tool_activitydates');
+        $field = new xmldb_field('finishenabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'resetunselected');
+        $dbman->change_field_default($table, $field);
+
+        \tool_activitydates\local\upgrade_helper::convert_lock_config();
+
+        upgrade_plugin_savepoint(true, 2026092901, 'tool', 'activitydates');
+    }
+
+    if ($oldversion < 2026092902) {
+        // Fixed dates: the scheduler leaves these activity dates as the teacher set them.
+        $table = new xmldb_table('tool_activitydates_fixed');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('cmid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('field', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('fk_course', XMLDB_KEY_FOREIGN, ['courseid'], 'course', ['id']);
+        $table->add_index('cmidfield', XMLDB_INDEX_UNIQUE, ['cmid', 'field']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // The course-page note becomes a per-activity choice.
+        $table = new xmldb_table('tool_activitydates_lockitem');
+        $field = new xmldb_field('shownotecoursepage', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'shownote');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Items whose note showed on the course page keep showing it there.
+        \tool_activitydates\local\upgrade_helper::migrate_course_page_notes();
+
+        $table = new xmldb_table('tool_activitydates_lock');
+        foreach (['shownote', 'shownotecoursepage'] as $name) {
+            $field = new xmldb_field($name);
+            if ($dbman->field_exists($table, $field)) {
+                $dbman->drop_field($table, $field);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026092902, 'tool', 'activitydates');
+    }
+
     return true;
 }

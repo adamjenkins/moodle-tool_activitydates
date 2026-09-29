@@ -4,9 +4,108 @@ All notable changes to `tool_activitydates` are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- An Enable checkbox for the session finish date, off by default, with a new
+  site default `finishenabled`. Enabled, it caps the schedule: sessions that
+  start after it are not scheduled. Disabled, every selected activity is
+  scheduled. Saved course configurations keep their setting.
+- Close-date options: after a number of days, at the end of this session, all
+  on a date, or no date, with site defaults.
+- Due-date options, the same four, for activity types whose table has a
+  `duedate` column (the quiz on Moodle 5.3 and later; on earlier versions the
+  due settings and column do not appear). The feature is gated on the column,
+  not on the Moodle version. Due dates must be after the open date and no later
+  than the close date.
+- Lock-date options for grade locks, on the same schedule: after a number of
+  days from opening, at the end of this session, all on a date, or No lock
+  (the default), which leaves existing grade locks untouched. Site defaults
+  `lockmode` and `lockdays`.
+- A **Preview** button and an editable date table: one **Dates** column
+  stacks each activity's Open, Due, Close and Locked fields. On load and after
+  a save the fields show the current dates (empty where not set); Preview fills
+  them with the proposals. Save writes exactly the table's dates, so a save
+  straight after loading changes nothing. Fields the user cannot change are
+  disabled.
+- A **Hold** checkbox for each date. A held date keeps its value through
+  Preview, even when the settings change, and "after a number of days" counts
+  from a held open date. The flags are stored per activity and field in the
+  new table `tool_activitydates_fixed` (`:manage` for open, due and close,
+  `:managelocks` for the lock date) and deleted with the activity or the course.
+- A **Grade-lock note** column with per-activity **Activity page** and **Course
+  page** checkboxes, each with a select-all, stored in the new
+  `tool_activitydates_lockitem.shownotecoursepage` field.
+- Row validation on Save, only between dates that are set: close after open,
+  due after open and no later than close. Any date may be left empty; an empty
+  lock date clears the lock. If any row fails, nothing is written and the
+  edited values are kept with an error on each wrong field.
+- Stale-table protection: changing a date-affecting setting or the selection
+  after a Preview shows a "Settings changed" bar and disables the Save buttons;
+  the server refuses a save whose settings no longer match the table. The Hold
+  and note checkboxes are not part of this check.
+
 ### Changed
 
 - Declare Moodle 5.3 support.
+- For quizzes, the table's Question count column is replaced by **Marks**, the
+  quiz's maximum grade.
+- The Grade locks tab is merged into the Activity dates page as a collapsible
+  Grade locks section, collapsed while the lock option is No lock. `locks.php`
+  redirects to `view.php`. The page needs `:manage` or `:managelocks` and shows
+  and saves only what the user's capabilities allow. Graded types without
+  open/close dates (e.g. assignments) are offered for their lock dates only.
+- Preview replaces Refresh and saves nothing; Refresh saved the settings and
+  selection.
+- The form's sections Grade locks and Advanced are collapsible; the buttons
+  sit below them, so they stay visible while those are collapsed.
+- The site settings `lockshownote` and `lockshownotecoursepage` now only set
+  the starting state of the note checkboxes for activities without a saved
+  note, applied when such an activity is selected; unselected, its boxes show
+  unticked.
+- With both capabilities the ticks come from the dates selection
+  (`tool_activitydates_cmids`). Save keeps the lock item, notes and lock date
+  of an unticked activity that only the lock selection holds (e.g. after the
+  upgrade from 2.0, whose two tabs were selected separately); unticking an
+  activity the page showed ticked removes it from both.
+- A lock date posted unchanged is not written, so the grade items of one
+  activity keep their different lock dates; it still counts as updated.
+- A table date in the hour a daylight-saving fall-back repeats is parsed as the
+  row's current or proposed date when that shows the same, so it is saved as
+  shown.
+- The upgrade sets `shownotecoursepage` on each lock item whose note was on in
+  a course that showed notes on the course page, then drops `shownote` and
+  `shownotecoursepage` from `tool_activitydates_lock`.
+- "At the end of this session" now closes an activity when the next session
+  opens. 2.0.0 closed it the day before, at the finish date's time of day. The
+  finish date no longer sets any time of day.
+- Date arithmetic is done in the user's timezone, so "+N days" keeps the local
+  time of day across a daylight-saving change.
+- The upgrade converts `stayavailable` into the new close option, per course
+  (1 becomes `none`, 0 becomes `session`) and in the site defaults, then drops
+  the column and the setting.
+- The upgrade gives `tool_activitydates_lock` the `lockmode` (`none`),
+  `lockdays` and `lockdate` fields and drops its `modtype`, `schedulestart`,
+  `sessionlength` and `activitiespersession`. Lock dates already in the
+  gradebook and the note settings are kept.
+
+### Removed
+
+- The course-level "Show student note" and "Also show notes on the course
+  page" options of the Grade locks section (now per activity).
+- The "Stay available after session finish" option and its site default.
+- The Grade locks tab and its own schedule settings (start, session length,
+  activities per session) with the `locksessionlength` and
+  `lockactivitiespersession` site defaults.
+
+### Fixed
+
+- Deleting an activity deletes its rows in `tool_activitydates_cmids`,
+  `tool_activitydates_lockitem` and `tool_activitydates_fixed` (a
+  `course_module_deleted` observer); before, they stayed until the course was
+  deleted.
+- On Moodle 5.3, the quiz's due date is written together with its open and
+  close dates and kept between them, and "Reset unselected" clears it
+  (MDL-82521 made `quiz.duedate` a column the tool left stale).
 
 ## [2.0.0] - 2026-09-27
 

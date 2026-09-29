@@ -17,7 +17,7 @@
 namespace tool_activitydates\local;
 
 /**
- * The button row shared by the Activity dates and Grade locks forms.
+ * The Activity dates form's button row, below its last collapsible section.
  *
  * For use in a moodleform subclass only: it reads the form's $_form.
  *
@@ -53,5 +53,7 @@ trait action_buttons {
         }
         $mform->addGroup($buttonarray, 'buttonar', '', [' '], false);
         $mform->setType('buttonar', PARAM_RAW);
+        // Outside the last section, which may be collapsed.
+        $mform->closeHeaderBefore('buttonar');
     }
 }

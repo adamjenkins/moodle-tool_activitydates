@@ -17,22 +17,35 @@
 {{!
     @template tool_activitydates/modtable
 
-    Table of a course's activities of one module type, with their current
-    open/close dates and the sessions they will be scheduled into.
+    Table of a course's activities of one module type and the sessions they are
+    scheduled into. One Dates column stacks each activity's open, (due), close
+    and lock dates, each an input with a Hold checkbox. The inputs show the
+    current values, or on Preview the proposals (held fields keep their
+    values); inputs the user cannot change are disabled. The Grade-lock note
+    column has the activity-page and course-page note checkboxes. The inputs sit
+    outside the moodleform and carry form="formid" so they post with it.
 
     Classes required for JS:
     * none
 
     Data attributes required for JS:
-    * none
+    * data-region="tool_activitydates-previewtable" with data-formid - the table wrapper
+    * data-region="tool_activitydates-stale" - the stale-settings bar
+    * data-cmid, data-field - on each date input and its hint
+    * data-region="tool_activitydates-hint" - the inline hint after each date input
+    * data-rowcontrol="cmid" - a checkbox enabled only while its row is selected
 
     Context variables required for this template:
+    * formid string - the id of the moodleform the inputs submit with
+    * fingerprint string - the settings fingerprint the table was built from
+    * showlocks bool - whether to show the Grade-lock note column (:managelocks and a graded type)
+    * fixhelp object - the core/help_icon context of the Hold help
     * modname string - the module type name (e.g. quiz), used in the activity links
-    * showquestioncount bool - whether to show the question count column
+    * showmarks bool - whether to show the Marks column
     * colcount int - number of visible columns, drives the session header colspan
     * tabledata array - list of header and activity rows
       * isheader bool - true for a session header row
-      * dates object - the session window (absent when the session has no selection)
+      * dates object - the session window (absent when the session is not scheduled)
         * sessionnumber int - the 1-based session number
         * startformatted string - session open date formatted for display
         * startattr string - session open date for the time element's datetime attribute
@@ -42,19 +55,44 @@
       * name string - the activity name (activity rows)
       * intro string - the activity description (activity rows)
       * selected string - "checked" when the activity is selected (activity rows)
-      * questioncount int - number of questions (quiz activity rows)
-      * timeopen int - current open timestamp, 0 when unset (activity rows)
-      * timeopenformatted string - current open date formatted for display, empty when unset
-      * timeopenattr string - current open date for the datetime attribute, empty when unset
-      * timeclose int - current close timestamp, 0 when unset (activity rows)
-      * timecloseformatted string - current close date formatted for display, empty when unset
-      * timecloseattr string - current close date for the datetime attribute, empty when unset
+      * marks string - the formatted maximum grade (quiz activity rows)
+      * editable bool - whether the row is selected and scheduled
+      * statustext string - what Save does to a row that is not scheduled
+      * fields array - the row's dates, in display order
+        * field string - timeopen, duedate, timeclose or timelock
+        * cmid int - the course module id
+        * label string - the field's label
+        * inputlabel string - the input's accessible name
+        * value string - the input's value (YYYY-MM-DDTHH:MM or empty)
+        * disabled bool - whether the input is disabled
+        * invalid bool - whether the value failed validation
+        * error string - the value's error message
+        * holdable bool - whether the field has a Hold checkbox (not Locked without a grade item)
+        * fixed bool - whether the Hold checkbox is ticked
+        * fixtoggle bool - whether the Hold checkbox follows the row's selection
+        * fixdisabled bool - whether the Hold checkbox is disabled
+        * fixlabel string - the Hold checkbox's accessible name
+      * hasnotes bool - whether the row has note checkboxes (it has a grade item)
+      * shownote bool - whether the activity-page note is ticked
+      * shownotecoursepage bool - whether the course-page note is ticked
+      * notedisabled bool - whether the note checkboxes are disabled (unselected rows)
+      * hasnotedefault bool - whether the row's note checkboxes take the site defaults once it is selected
+      * defaultnote bool - the site default of the activity-page note
+      * defaultcoursenote bool - the site default of the course-page note
 
     Example context (json):
     {
+        "formid": "tool_activitydates_dates_form",
+        "fingerprint": "0123456789abcdef0123456789abcdef01234567",
+        "showlocks": true,
+        "fixhelp": {
+            "text": "Keep this date when the dates are previewed.",
+            "alt": "Help with Hold",
+            "ltr": true
+        },
         "modname": "quiz",
-        "showquestioncount": true,
-        "colcount": 6,
+        "showmarks": true,
+        "colcount": 7,
         "tabledata": [
             {
                 "isheader": true,
@@ -72,84 +110,185 @@
                 "name": "Quiz 1",
                 "intro": "First quiz",
                 "selected": "checked",
-                "questioncount": 5,
-                "timeopen": 1704447600,
-                "timeopenformatted": "Fri 05 Jan 2024 10:00",
-                "timeopenattr": "2024-01-05T10:00",
-                "timeclose": 1705052400,
-                "timecloseformatted": "Fri 12 Jan 2024 10:00",
-                "timecloseattr": "2024-01-12T10:00"
+                "marks": "10.00",
+                "editable": true,
+                "statustext": "",
+                "fields": [
+                    {"field": "timeopen", "cmid": 56, "label": "Open", "inputlabel": "Open: Quiz 1",
+                        "value": "2024-01-05T10:00", "disabled": false, "invalid": false, "error": "",
+                        "holdable": true, "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Open for Quiz 1"},
+                    {"field": "timeclose", "cmid": 56, "label": "Close", "inputlabel": "Close: Quiz 1",
+                        "value": "2024-01-05T09:00", "disabled": false, "invalid": true,
+                        "error": "The close date must be after the open date.",
+                        "holdable": true, "fixed": true, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Close for Quiz 1"},
+                    {"field": "timelock", "cmid": 56, "label": "Locked", "inputlabel": "Locked: Quiz 1",
+                        "value": "", "disabled": true, "invalid": false, "error": "",
+                        "holdable": true, "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Locked for Quiz 1"}
+                ],
+                "hasnotes": true,
+                "shownote": true,
+                "shownotecoursepage": false,
+                "notedisabled": false,
+                "hasnotedefault": false,
+                "defaultnote": true,
+                "defaultcoursenote": false
+            },
+            {
+                "isheader": false,
+                "id": 57,
+                "name": "Quiz 2",
+                "intro": "",
+                "selected": "",
+                "marks": "20.00",
+                "editable": false,
+                "statustext": "Not scheduled",
+                "fields": [
+                    {"field": "timeopen", "cmid": 57, "label": "Open", "inputlabel": "Open: Quiz 2",
+                        "value": "", "disabled": true, "invalid": false, "error": "",
+                        "holdable": true, "fixed": false, "fixtoggle": true, "fixdisabled": true, "fixlabel": "Hold Open for Quiz 2"}
+                ],
+                "hasnotes": true,
+                "shownote": false,
+                "shownotecoursepage": false,
+                "notedisabled": true
             }
         ]
     }
 }}
-<div class="card">
-    <div class="table-responsive">
-        <table class="table table-hover table-bordered table-striped">
-            <thead>
-                <tr>
-                    <th>
-                        <input type="checkbox" name="selectall" id="id_selectall"
-                            title="{{#str}}toggleselection, tool_activitydates{{/str}}">
-                    </th>
-                    <th class="col-md-0">{{#str}}name{{/str}}</th>
-                    <th class="col-md-4">{{#str}}description{{/str}}</th>
-                    {{#showquestioncount}}
-                        <th class="col-md-1">{{#str}}questioncount, tool_activitydates{{/str}}</th>
-                    {{/showquestioncount}}
-                    <th class="col-md-2">{{#str}}from, tool_activitydates{{/str}}</th>
-                    <th class="col-md-2">{{#str}}to, tool_activitydates{{/str}}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{^tabledata}}
+<div data-region="tool_activitydates-previewtable" data-formid="{{formid}}">
+    <input type="hidden" name="tablefingerprint" form="{{formid}}" value="{{fingerprint}}">
+    <div role="status">
+        <div data-region="tool_activitydates-stale" class="alert alert-warning" hidden>{{#str}}tablestale, tool_activitydates{{/str}}</div>
+    </div>
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered table-striped">
+                <thead>
                     <tr>
-                        <td colspan="{{colcount}}">{{#str}}nomodulesincourse, tool_activitydates{{/str}}</td>
+                        <th scope="col">
+                            <input type="checkbox" name="selectall" id="id_selectall"
+                                aria-label="{{#str}}toggleselection, tool_activitydates{{/str}}"
+                                title="{{#str}}toggleselection, tool_activitydates{{/str}}">
+                        </th>
+                        <th scope="col" class="col-md-0">{{#str}}name{{/str}}</th>
+                        <th scope="col" class="col-md-3">{{#str}}description{{/str}}</th>
+                        {{#showmarks}}
+                            <th scope="col" class="col-md-1">{{#str}}marks, tool_activitydates{{/str}}</th>
+                        {{/showmarks}}
+                        <th scope="col">
+                            {{#str}}datescolumn, tool_activitydates{{/str}}
+                            {{#fixhelp}}{{>core/help_icon}}{{/fixhelp}}
+                        </th>
+                        {{#showlocks}}
+                            <th scope="col">
+                                <div>{{#str}}gradelocknoteheader, tool_activitydates{{/str}}</div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="id_togglenotes"
+                                        aria-label="{{#str}}togglenotes, tool_activitydates{{/str}}"
+                                        title="{{#str}}togglenotes, tool_activitydates{{/str}}">
+                                    <label class="form-check-label" for="id_togglenotes">{{#str}}noteactivitypage, tool_activitydates{{/str}}</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="id_togglecoursenotes"
+                                        aria-label="{{#str}}togglecoursenotes, tool_activitydates{{/str}}"
+                                        title="{{#str}}togglecoursenotes, tool_activitydates{{/str}}">
+                                    <label class="form-check-label" for="id_togglecoursenotes">{{#str}}notecoursepage, tool_activitydates{{/str}}</label>
+                                </div>
+                            </th>
+                        {{/showlocks}}
+                        <th scope="col">{{#str}}status{{/str}}</th>
                     </tr>
-                {{/tabledata}}
-                {{#tabledata}}
-                    {{#isheader}}
+                </thead>
+                <tbody>
+                    {{^tabledata}}
                         <tr>
-                            <td colspan="{{colcount}}">
-                                {{#dates}}
-                                    {{#str}}session, tool_activitydates{{/str}} {{sessionnumber}}:
-                                    <time datetime="{{startattr}}">{{startformatted}}</time>
-                                    &ndash;
-                                    <time datetime="{{endattr}}">{{endformatted}}</time>
-                                {{/dates}}
-                                {{^dates}}
-                                    {{#str}}session, tool_activitydates{{/str}} &mdash;
-                                {{/dates}}
-                            </td>
+                            <td colspan="{{colcount}}">{{#str}}nomodulesincourse, tool_activitydates{{/str}}</td>
                         </tr>
-                    {{/isheader}}
-                    {{^isheader}}
-                        <tr>
-                            <td>
-                                <input type="checkbox" name="select" id="id_cmid_{{id}}"
-                                    aria-label="{{name}}" {{selected}}>
-                            </td>
-                            <td><a href="{{config.wwwroot}}/mod/{{modname}}/view.php?id={{id}}">{{name}}</a></td>
-                            <td>{{intro}}</td>
-                            {{#showquestioncount}}
-                                <td>{{questioncount}}</td>
-                            {{/showquestioncount}}
-                            <td>
-                                {{#timeopen}}
-                                    <time datetime="{{timeopenattr}}">{{timeopenformatted}}</time>
-                                {{/timeopen}}
-                                {{^timeopen}}&mdash;{{/timeopen}}
-                            </td>
-                            <td>
-                                {{#timeclose}}
-                                    <time datetime="{{timecloseattr}}">{{timecloseformatted}}</time>
-                                {{/timeclose}}
-                                {{^timeclose}}&mdash;{{/timeclose}}
-                            </td>
-                        </tr>
-                    {{/isheader}}
-                {{/tabledata}}
-            </tbody>
-        </table>
+                    {{/tabledata}}
+                    {{#tabledata}}
+                        {{#isheader}}
+                            <tr>
+                                <td colspan="{{colcount}}">
+                                    {{#dates}}
+                                        {{#str}}session, tool_activitydates{{/str}} {{sessionnumber}}:
+                                        <time datetime="{{startattr}}">{{startformatted}}</time>
+                                        &ndash;
+                                        <time datetime="{{endattr}}">{{endformatted}}</time>
+                                    {{/dates}}
+                                    {{^dates}}
+                                        {{#str}}session, tool_activitydates{{/str}} &mdash;
+                                    {{/dates}}
+                                </td>
+                            </tr>
+                        {{/isheader}}
+                        {{^isheader}}
+                            <tr>
+                                <td>
+                                    <input type="checkbox" name="select" id="id_cmid_{{id}}"
+                                        aria-label="{{name}}" {{selected}}>
+                                </td>
+                                <td><a href="{{config.wwwroot}}/mod/{{modname}}/view.php?id={{id}}">{{name}}</a></td>
+                                <td>{{intro}}</td>
+                                {{#showmarks}}
+                                    <td>{{marks}}</td>
+                                {{/showmarks}}
+                                <td>
+                                    {{#fields}}
+                                        <div class="mb-1">
+                                            <label class="form-label small text-muted mb-0" for="tool_activitydates_{{field}}_{{cmid}}">{{label}}</label>
+                                            <div class="d-flex align-items-center">
+                                                <input type="datetime-local" class="form-control{{#invalid}} is-invalid{{/invalid}}"{{#invalid}} aria-invalid="true"{{/invalid}}
+                                                    name="{{field}}_rows[{{cmid}}]" form="{{formid}}" value="{{value}}"
+                                                    data-cmid="{{cmid}}" data-field="{{field}}"
+                                                    id="tool_activitydates_{{field}}_{{cmid}}"
+                                                    aria-describedby="tool_activitydates_{{field}}_{{cmid}}_hint"
+                                                    aria-label="{{inputlabel}}"{{#disabled}} disabled{{/disabled}}>
+                                                {{#holdable}}
+                                                <div class="form-check ms-2 text-nowrap">
+                                                    <input type="checkbox" class="form-check-input" name="fix_{{field}}[{{cmid}}]" value="1"
+                                                        form="{{formid}}" id="tool_activitydates_fix_{{field}}_{{cmid}}"
+                                                        aria-label="{{fixlabel}}"{{#fixtoggle}} data-rowcontrol="{{cmid}}"{{/fixtoggle}}{{#fixed}} checked{{/fixed}}{{#fixdisabled}} disabled{{/fixdisabled}}>
+                                                    <label class="form-check-label" for="tool_activitydates_fix_{{field}}_{{cmid}}">{{#str}}hold, tool_activitydates{{/str}}</label>
+                                                </div>
+                                                {{/holdable}}
+                                            </div>
+                                            <div class="invalid-feedback{{#invalid}} d-block{{/invalid}}" data-region="tool_activitydates-hint" data-cmid="{{cmid}}"
+                                                data-field="{{field}}" id="tool_activitydates_{{field}}_{{cmid}}_hint">{{error}}</div>
+                                        </div>
+                                    {{/fields}}
+                                </td>
+                                {{#showlocks}}
+                                    <td>
+                                        {{#hasnotes}}
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="shownote_cmids[]" value="{{id}}" form="{{formid}}"
+                                                id="id_shownote_{{id}}" data-rowcontrol="{{id}}"
+                                                {{#hasnotedefault}}data-defaultchecked="{{#defaultnote}}1{{/defaultnote}}{{^defaultnote}}0{{/defaultnote}}"{{/hasnotedefault}}
+                                                {{#shownote}}checked{{/shownote}}{{#notedisabled}} disabled{{/notedisabled}}>
+                                            <label class="form-check-label" for="id_shownote_{{id}}">
+                                                {{#str}}noteactivitypage, tool_activitydates{{/str}}
+                                                <span class="visually-hidden">{{name}}</span>
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="shownotecourse_cmids[]" value="{{id}}" form="{{formid}}"
+                                                id="id_shownotecourse_{{id}}" data-rowcontrol="{{id}}"
+                                                {{#hasnotedefault}}data-defaultchecked="{{#defaultcoursenote}}1{{/defaultcoursenote}}{{^defaultcoursenote}}0{{/defaultcoursenote}}"{{/hasnotedefault}}
+                                                {{#shownotecoursepage}}checked{{/shownotecoursepage}}{{#notedisabled}} disabled{{/notedisabled}}>
+                                            <label class="form-check-label" for="id_shownotecourse_{{id}}">
+                                                {{#str}}notecoursepage, tool_activitydates{{/str}}
+                                                <span class="visually-hidden">{{name}}</span>
+                                            </label>
+                                        </div>
+                                        {{/hasnotes}}
+                                    </td>
+                                {{/showlocks}}
+                                <td>{{statustext}}</td>
+                            </tr>
+                        {{/isheader}}
+                    {{/tabledata}}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>

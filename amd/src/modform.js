@@ -14,8 +14,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Mirror the visible activity checkboxes into the hidden form checkboxes and
- * drive the select-all toggle.
+ * Mirror the visible activity checkboxes into the hidden form checkboxes,
+ * enable each row's Hold and note checkboxes only while the row is selected,
+ * drive the select-all and the two note select-all checkboxes, and preview
+ * automatically when the activity type is changed.
  *
  * @module     tool_activitydates/modform
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -23,6 +25,71 @@
  */
 
 export const init = () => {
+
+    // Preview when the activity type changes, so the table and the schedule
+    // fields refresh for the newly chosen type. The Preview submit button is the
+    // no-JS fallback this mirrors. The form adds the group with appendName off,
+    // so the elements keep their own ids (id_modtype, id_preview).
+    const modtypeSelect = document.getElementById('id_modtype');
+    const previewButton = document.getElementById('id_preview');
+    if (modtypeSelect && previewButton) {
+        modtypeSelect.addEventListener('change', () => {
+            previewButton.click();
+        });
+    }
+
+    // The Grade-lock note column's header checkboxes tick or untick the activity-page
+    // or the course-page note of every selected row (the others are disabled).
+    const noteToggles = [
+        ['id_togglenotes', 'shownote_cmids[]'],
+        ['id_togglecoursenotes', 'shownotecourse_cmids[]'],
+    ].map(([toggleid, name]) => [document.getElementById(toggleid), name]).filter(([toggle]) => toggle);
+
+    /**
+     * Tick each note header checkbox only when every enabled note checkbox of its
+     * kind is ticked, and there is at least one.
+     */
+    const syncNoteToggles = () => {
+        noteToggles.forEach(([toggle, name]) => {
+            const enabled = Array.from(document.querySelectorAll('input[name="' + name + '"]'))
+                .filter(checkbox => !checkbox.disabled);
+            toggle.checked = enabled.length > 0 && enabled.every(checkbox => checkbox.checked);
+        });
+    };
+
+    noteToggles.forEach(([toggle, name]) => {
+        toggle.addEventListener('click', e => {
+            document.querySelectorAll('input[name="' + name + '"]').forEach(checkbox => {
+                if (!checkbox.disabled) {
+                    checkbox.checked = e.target.checked;
+                }
+            });
+        });
+        document.querySelectorAll('input[name="' + name + '"]').forEach(checkbox => {
+            checkbox.addEventListener('change', syncNoteToggles);
+        });
+    });
+    syncNoteToggles();
+
+    /**
+     * Enable a row's Hold and note checkboxes only while the row is selected. Their
+     * values are saved for selected rows only, and a disabled checkbox is not posted.
+     * A note checkbox of a row without a saved note takes the site default the first
+     * time the row is selected.
+     *
+     * @param {string} cmid the course module id.
+     * @param {boolean} selected whether the row is selected.
+     */
+    const setRowControls = (cmid, selected) => {
+        document.querySelectorAll('[data-rowcontrol="' + cmid + '"]').forEach(control => {
+            control.disabled = !selected;
+            if (selected && control.dataset.defaultchecked !== undefined) {
+                control.checked = control.dataset.defaultchecked === '1';
+                delete control.dataset.defaultchecked;
+            }
+        });
+        syncNoteToggles();
+    };
 
     const selectAllCheckBox = document.getElementById('id_selectall');
     // Guard against a course with no activities of the selected type, where the
@@ -39,6 +106,7 @@ export const init = () => {
         // Visible table checkboxes.
         document.querySelectorAll("[id^='id_cmid_']").forEach(checkbox => {
             checkbox.checked = e.target.checked ? true : false;
+            setRowControls(checkbox.id.split('_')[2], checkbox.checked);
         });
     });
 
@@ -58,6 +126,7 @@ export const init = () => {
         const checkboxid = 'id_activitygroup_activity_' + id;
         const checkbox = document.getElementById(checkboxid);
         checkbox.checked = e.currentTarget.checked;
+        setRowControls(id, e.currentTarget.checked);
         configureSelectAll();
     }
 

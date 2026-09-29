@@ -29,4 +29,8 @@ $observers = [
         'eventname' => \core\event\course_deleted::class,
         'callback' => '\tool_activitydates\observer::course_deleted',
     ],
+    [
+        'eventname' => \core\event\course_module_deleted::class,
+        'callback' => '\tool_activitydates\observer::course_module_deleted',
+    ],
 ];

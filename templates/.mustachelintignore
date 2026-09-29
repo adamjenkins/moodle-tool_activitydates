@@ -1,10 +1,10 @@
-# Exclude lockmodtable from HTML validity checks (ESLint and the Mustache checks
+# Exclude modtable from HTML validity checks (ESLint and the Mustache checks
 # still run, and every other template here stays fully validated).
 #
-# lockmodtable is a page fragment, not a standalone document: its checkboxes carry
-# form="tool_activitydates_lock_form", which points at the moodleform rendered earlier
-# on the page (see classes/locks/form/lock_form.php). The linter renders the
-# template on its own, where no such form exists, so the HTML validator always
-# reports "The form attribute must refer to a form element" for markup that is
-# correct on the real page.
-lockmodtable.mustache
+# It is a page fragment, not a standalone document: its inputs carry
+# form="tool_activitydates_dates_form", which points at the moodleform rendered
+# earlier on the page (see classes/form/activitydates_form.php). The linter
+# renders the template on its own, where no such form exists, so the HTML
+# validator always reports "The form attribute must refer to a form element"
+# for markup that is correct on the real page.
+modtable.mustache

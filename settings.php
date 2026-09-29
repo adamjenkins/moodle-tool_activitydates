@@ -27,7 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 if ($hassiteconfig) {
     $settings = new admin_settingpage('tool_activitydates_settings', new lang_string('pluginname', 'tool_activitydates'));
 
-    // Headings keep the two tabs' same-named defaults apart.
+    // Headings keep the dates defaults and the same-named grade-lock defaults apart.
     $settings->add(new admin_setting_heading(
         'tool_activitydates/datesettings',
         get_string('tabdates', 'tool_activitydates'),
@@ -52,11 +52,52 @@ if ($hassiteconfig) {
         3
     ));
 
+    $modes = [
+        'days' => get_string('mode_days', 'tool_activitydates'),
+        'session' => get_string('mode_session', 'tool_activitydates'),
+        'date' => get_string('mode_date', 'tool_activitydates'),
+        'none' => get_string('mode_none', 'tool_activitydates'),
+    ];
+
     $settings->add(new admin_setting_configcheckbox(
-        'tool_activitydates/stayavailable',
-        get_string('stayavailable', 'tool_activitydates'),
-        get_string('stayavailable_help', 'tool_activitydates'),
+        'tool_activitydates/finishenabled',
+        get_string('finishenabled', 'tool_activitydates'),
+        get_string('configfinishenabled', 'tool_activitydates'),
         0
+    ));
+
+    $settings->add(new admin_setting_configselect(
+        'tool_activitydates/duemode',
+        get_string('duemode', 'tool_activitydates'),
+        get_string('configduemode', 'tool_activitydates'),
+        'none',
+        $modes
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_activitydates/duedays',
+        get_string('duedays', 'tool_activitydates'),
+        '',
+        '7',
+        PARAM_INT,
+        3
+    ));
+
+    $settings->add(new admin_setting_configselect(
+        'tool_activitydates/closemode',
+        get_string('closemode', 'tool_activitydates'),
+        get_string('configclosemode', 'tool_activitydates'),
+        'session',
+        $modes
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_activitydates/closedays',
+        get_string('closedays', 'tool_activitydates'),
+        '',
+        '7',
+        PARAM_INT,
+        3
     ));
 
     $settings->add(new admin_setting_configcheckbox(
@@ -72,20 +113,26 @@ if ($hassiteconfig) {
         get_string('locksettings_desc', 'tool_activitydates')
     ));
 
-    $settings->add(new admin_setting_configtext(
-        'tool_activitydates/locksessionlength',
-        get_string('locksessionlength', 'tool_activitydates'),
-        get_string('locksessionlength_desc', 'tool_activitydates'),
-        '7',
-        PARAM_INT,
-        3
+    $lockmodes = [
+        'days' => get_string('mode_days', 'tool_activitydates'),
+        'session' => get_string('mode_session', 'tool_activitydates'),
+        'date' => get_string('mode_date', 'tool_activitydates'),
+        'none' => get_string('lockmode_none', 'tool_activitydates'),
+    ];
+
+    $settings->add(new admin_setting_configselect(
+        'tool_activitydates/lockmode',
+        get_string('lockmode', 'tool_activitydates'),
+        get_string('configlockmode', 'tool_activitydates'),
+        'none',
+        $lockmodes
     ));
 
     $settings->add(new admin_setting_configtext(
-        'tool_activitydates/lockactivitiespersession',
-        get_string('lockactivitiespersession', 'tool_activitydates'),
-        get_string('lockactivitiespersession_desc', 'tool_activitydates'),
-        '5',
+        'tool_activitydates/lockdays',
+        get_string('lockdays', 'tool_activitydates'),
+        '',
+        '7',
         PARAM_INT,
         3
     ));

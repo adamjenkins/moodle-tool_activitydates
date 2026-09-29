@@ -24,8 +24,9 @@ namespace tool_activitydates\local;
  *
  * That historic upgrade step (db/upgrade.php, 2026092600) runs this live code
  * against the 2026092600 schema. Keep orphans() to those four tables and
- * columns; if it must cover a table added later, give the upgrade step its
- * own frozen copy of this query first.
+ * columns, plus tables added later only behind a table_exists() check (as for
+ * tool_activitydates_fixed, added in 2026092902); if it must change how those
+ * four are cleaned, give the upgrade step its own frozen copy of this query first.
  *
  * @package    tool_activitydates
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -35,11 +36,25 @@ class cleanup {
     /**
      * Delete the configuration rows (and their child rows) of missing courses.
      *
-     * @return int The number of rows deleted, across all four tables.
+     * @return int The number of rows deleted, across all of this plugin's tables.
      */
     public static function orphans(): int {
         global $DB;
         $deleted = 0;
+
+        // Fixed-date flags carry their course directly. The table does not exist yet
+        // when the 2026092600 upgrade step runs this.
+        if ($DB->get_manager()->table_exists('tool_activitydates_fixed')) {
+            $orphanids = $DB->get_fieldset_sql(
+                "SELECT f.id FROM {tool_activitydates_fixed} f LEFT JOIN {course} c ON c.id = f.courseid WHERE c.id IS NULL"
+            );
+            if ($orphanids) {
+                [$insql, $params] = $DB->get_in_or_equal($orphanids);
+                $DB->delete_records_select('tool_activitydates_fixed', "id $insql", $params);
+                $deleted += count($orphanids);
+            }
+        }
+
         $pairs = [
             // Parent table, child table, child's foreign-key column.
             ['tool_activitydates', 'tool_activitydates_cmids', 'activitydates'],

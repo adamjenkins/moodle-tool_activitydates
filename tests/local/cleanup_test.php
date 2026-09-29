@@ -40,14 +40,20 @@ final class cleanup_test extends \advanced_testcase {
         foreach ([$course->id, $missing] as $courseid) {
             $datesid = $DB->insert_record('tool_activitydates', (object) ['courseid' => $courseid, 'modtype' => 'quiz']);
             $DB->insert_record('tool_activitydates_cmids', (object) ['activitydates' => $datesid, 'coursemoduleid' => 1]);
-            $lockid = $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $courseid, 'modtype' => 'quiz']);
+            $lockid = $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $courseid]);
             $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => 1, 'shownote' => 1]);
+            $DB->insert_records('tool_activitydates_fixed', array_map(
+                fn($field) => ['courseid' => $courseid, 'cmid' => $courseid, 'field' => $field, 'timemodified' => 1],
+                ['timeopen', 'timelock']
+            ));
         }
 
-        $this->assertSame(4, cleanup::orphans());
+        $this->assertSame(6, cleanup::orphans());
+        $this->assertSame(0, cleanup::orphans());
 
-        foreach (['tool_activitydates', 'tool_activitydates_lock'] as $table) {
-            $this->assertSame(1, $DB->count_records($table, ['courseid' => $course->id]));
+        $expected = ['tool_activitydates' => 1, 'tool_activitydates_lock' => 1, 'tool_activitydates_fixed' => 2];
+        foreach ($expected as $table => $count) {
+            $this->assertSame($count, $DB->count_records($table, ['courseid' => $course->id]));
             $this->assertSame(0, $DB->count_records($table, ['courseid' => $missing]));
         }
         $this->assertSame(1, $DB->count_records('tool_activitydates_cmids'));

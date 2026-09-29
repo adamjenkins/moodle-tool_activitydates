@@ -59,24 +59,21 @@ final class hook_callbacks_test extends \advanced_testcase {
      */
     #[DataProvider('page_provider')]
     public function test_add_course_page_lock_notes_pages(string $script, string $pagetype, bool $expected): void {
-        global $PAGE;
+        global $DB, $PAGE;
         $this->resetAfterTest();
         $generator = $this->getDataGenerator();
         $course = $generator->create_course(['format' => 'topics']);
         $quiz = $generator->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
 
-        $mgr = new manager();
-        $mgr->update((object) [
-            'modtype' => 'quiz',
-            'schedulestart' => 2000000000,
-            'sessionlength' => 7,
-            'activitiespersession' => 1,
-            'shownote' => 0,
-            'shownotecoursepage' => 1,
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
+            'courseid' => $course->id,
             'resetunselected' => 0,
-            'cmids' => [$quiz->cmid],
-            'shownote_cmids' => [$quiz->cmid],
-        ], $course->id);
+        ]);
+        $DB->insert_record(
+            'tool_activitydates_lockitem',
+            (object) ['lockid' => $lockid, 'cmid' => $quiz->cmid, 'shownote' => 1, 'shownotecoursepage' => 1]
+        );
+        $mgr = new manager();
         $mgr->apply_locks([$quiz->cmid => 2000000000 + 7 * DAYSECS], 'quiz', $course->id, false);
         $this->setAdminUser();
 
