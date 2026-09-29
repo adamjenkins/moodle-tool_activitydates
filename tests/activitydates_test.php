@@ -57,6 +57,33 @@ final class activitydates_test extends \advanced_testcase {
     }
 
     /**
+     * Two quizzes, one per session, with the finish date between the sessions.
+     *
+     * Quiz1's session starts on schedulestart and quiz2's 7 days later, after
+     * schedulefinish, so quiz2 is not scheduled. Settings and selection are saved.
+     *
+     * @return array [quiz1, quiz2, schedulestart, manager, settings, tabledata, selections]
+     */
+    private function two_sessions_past_finish(): array {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $quiz1 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz1']);
+        $quiz2 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz2']);
+        $fromform = $this->fromform([
+            'schedulefinish' => strtotime('2030-01-05 17:00'),
+            'activitiespersession' => 1,
+            'activitygroup' => [
+                'activity_' . $quiz1->cmid => 1,
+                'activity_' . $quiz2->cmid => 1,
+            ],
+        ]);
+        $manager = new activitydates();
+        [$selections, $settings] = $manager->update($fromform, $course->id);
+        $tabledata = $manager->get_table_data($settings, $this->cmids($selections));
+        return [$quiz1, $quiz2, strtotime('2030-01-01 09:00'), $manager, $settings, $tabledata, $selections];
+    }
+
+    /**
      * The table's values as a teacher who accepts every proposal would submit them.
      *
      * @param array $tabledata rows from get_table_data().
@@ -303,7 +330,7 @@ final class activitydates_test extends \advanced_testcase {
         $generator = $this->getDataGenerator();
         $course = $generator->create_course();
         $quiz1 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz1']);
-        $quiz2 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz2']);
+        $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz2']);
         $manager = new activitydates();
         $selected = [(int) $quiz1->cmid];
 
@@ -584,6 +611,20 @@ final class activitydates_test extends \advanced_testcase {
             $this->assertObjectNotHasProperty('duedate', $record);
         }
 
+        // The table's current column reads the written due date back.
+        $rows = array_values(array_filter(
+            $manager->get_table_data($settings, $this->cmids($selections)),
+            fn($row) => !$row['isheader']
+        ));
+        if ($hasdue) {
+            $this->assertSame($due, $rows[0]['duedate']);
+            $this->assertSame(userdate($due, get_string('dateformat', 'tool_activitydates')), $rows[0]['duedateformatted']);
+            $this->assertNotSame('', $rows[0]['duedateattr']);
+        } else {
+            $this->assertNull($rows[0]['duedate']);
+            $this->assertSame('', $rows[0]['duedateformatted']);
+        }
+
         // Reset the now-unselected quiz: the due date is zeroed too.
         $fromform->activitygroup = [];
         $fromform->resetunselected = 1;
@@ -601,26 +642,7 @@ final class activitydates_test extends \advanced_testcase {
         global $DB;
         $this->resetAfterTest();
         $this->setAdminUser();
-        $generator = $this->getDataGenerator();
-        $course = $generator->create_course();
-        // One quiz per session (activitiespersession = 1): quiz1's session starts on
-        // schedulestart, quiz2's session starts 7 days later. schedulefinish sits
-        // between the two, so quiz2's window start exceeds schedulefinish.
-        $quiz1 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz1']);
-        $quiz2 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz2']);
-        $start = strtotime('2030-01-01 09:00');
-        $fromform = $this->fromform([
-            'schedulefinish' => strtotime('2030-01-05 17:00'),
-            'activitiespersession' => 1,
-            'activitygroup' => [
-                'activity_' . $quiz1->cmid => 1,
-                'activity_' . $quiz2->cmid => 1,
-            ],
-        ]);
-
-        $manager = new activitydates();
-        [$selections, $settings] = $manager->update($fromform, $course->id);
-        $tabledata = $manager->get_table_data($settings, $this->cmids($selections));
+        [$quiz1, $quiz2, $start, $manager, $settings, $tabledata] = $this->two_sessions_past_finish();
         $count = $manager->apply_dates($tabledata, $settings, $this->proposed_values($tabledata));
 
         // Only quiz1's window (start = schedulestart) is within schedulefinish.
@@ -652,27 +674,7 @@ final class activitydates_test extends \advanced_testcase {
 
     public function test_get_table_data_null_when_past_schedulefinish(): void {
         $this->resetAfterTest();
-        $generator = $this->getDataGenerator();
-        $course = $generator->create_course();
-        // One quiz per session (activitiespersession = 1): quiz1's session starts on
-        // schedulestart, quiz2's session starts 7 days later. schedulefinish sits
-        // between the two, so quiz2's window start exceeds schedulefinish and
-        // apply_dates() would skip it entirely.
-        $quiz1 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz1']);
-        $quiz2 = $generator->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz2']);
-        $start = strtotime('2030-01-01 09:00');
-        $fromform = $this->fromform([
-            'schedulefinish' => strtotime('2030-01-05 17:00'),
-            'activitiespersession' => 1,
-            'activitygroup' => [
-                'activity_' . $quiz1->cmid => 1,
-                'activity_' . $quiz2->cmid => 1,
-            ],
-        ]);
-
-        $manager = new activitydates();
-        [$selections, $settings] = $manager->update($fromform, $course->id);
-        $tabledata = $manager->get_table_data($settings, $this->cmids($selections));
+        [, , $start, $manager, $settings, $tabledata, $selections] = $this->two_sessions_past_finish();
 
         $headers = array_values(array_filter($tabledata, fn($row) => $row['isheader']));
         $this->assertCount(2, $headers);

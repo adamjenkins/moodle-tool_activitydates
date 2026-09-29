@@ -200,6 +200,21 @@ final class schedule_test extends \basic_testcase {
     }
 
     /**
+     * A session starting exactly at the finish date is still scheduled; one a minute later is not.
+     */
+    public function test_finish_cap_boundary(): void {
+        $settings = self::settings(['finishenabled' => 1, 'schedulefinish' => self::ts('2030-01-14 09:00')]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), false, self::tz());
+        $this->assertNotNull($result['windows'][1]);
+        $this->assertSame(self::ts('2030-01-14 09:00'), $result['dates'][13]['timeopen']);
+
+        $settings = self::settings(['finishenabled' => 1, 'schedulefinish' => self::ts('2030-01-14 08:59')]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), false, self::tz());
+        $this->assertNull($result['windows'][1]);
+        $this->assertNull($result['dates'][13]);
+    }
+
+    /**
      * Adding days keeps the local wall-clock time across a DST change.
      */
     public function test_add_days_across_dst(): void {
@@ -222,6 +237,14 @@ final class schedule_test extends \basic_testcase {
         $this->assertSame('2030-10-20 16:00', (new \DateTimeImmutable('@' . $from))->setTimezone($perth)->format('Y-m-d H:i'));
         $this->assertSame('2030-10-27 16:00', (new \DateTimeImmutable('@' . $to))->setTimezone($perth)->format('Y-m-d H:i'));
         $this->assertSame(7 * 86400, $to - $from);
+
+        // New York leaves DST on 3 November 2030; London (the tests' zone), Perth (PHPUnit's
+        // default) and UTC do not change between these dates, so only New York's rules give 25 hours.
+        $newyork = new \DateTimeZone('America/New_York');
+        $from = (new \DateTimeImmutable('2030-10-30 09:00', $newyork))->getTimestamp();
+        $to = schedule::add_days($from, 7, $newyork);
+        $this->assertSame('2030-11-06 09:00', (new \DateTimeImmutable('@' . $to))->setTimezone($newyork)->format('Y-m-d H:i'));
+        $this->assertSame(7 * 86400 + 3600, $to - $from);
     }
 
     /**
