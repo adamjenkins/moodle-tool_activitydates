@@ -269,13 +269,7 @@ if ($fromform = $mform->get_data()) {
 // On Preview the engine keeps the ticked fields at their posted (or current) values.
 $enginefixed = null;
 if ($source === preview_rows::SOURCE_PREVIEW) {
-    $enginefixed = preview_rows::engine_fixed(
-        $manager->get_table_data($settings, $selected, $hasdates),
-        $fixposted,
-        $rowinputs,
-        $fixable,
-        $tz
-    );
+    $enginefixed = fn(array $rows): array => preview_rows::engine_fixed($rows, $fixposted, $rowinputs, $fixable, $tz);
 }
 $tabledata = $manager->get_table_data($settings, $selected, $hasdates, $enginefixed);
 

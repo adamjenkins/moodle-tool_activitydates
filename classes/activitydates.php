@@ -621,11 +621,18 @@ class activitydates {
      * @param \stdClass $settings settings object (tool_activitydates row shape, optionally with the lock fields).
      * @param array $selectedcmids the selected cmids.
      * @param bool $hasdates whether the type has open and close dates.
-     * @param array|null $fixed the fixed fields for the engine, cmid => [field => int]; null uses
-     *   the saved Fix flags with the current values (page load and Save).
+     * @param array|\Closure|null $fixed the fixed fields for the engine, cmid => [field => int]; null uses
+     *   the saved Fix flags with the current values (page load and Save). A closure is called with
+     *   the data rows' isheader, id, selected, current and fixed keys, before the engine runs, and
+     *   returns the fixed fields (Preview: see output\preview_rows::engine_fixed()).
      * @return array list of header/data rows.
      */
-    public function get_table_data(\stdClass $settings, array $selectedcmids, bool $hasdates = true, ?array $fixed = null): array {
+    public function get_table_data(
+        \stdClass $settings,
+        array $selectedcmids,
+        bool $hasdates = true,
+        array|\Closure|null $fixed = null
+    ): array {
         global $DB;
         $modules = self::get_modules($settings);
         $cmids = array_map('intval', array_keys($modules));
@@ -650,7 +657,15 @@ class activitydates {
                 'timelock' => $lockmanager->current_locktime($courseid, $cm),
             ];
         }
-        if ($fixed === null) {
+        if ($fixed instanceof \Closure) {
+            $fixed = $fixed(array_map(fn(int $cmid): array => [
+                'isheader' => false,
+                'id' => $cmid,
+                'selected' => isset($selected[$cmid]) ? 'checked' : '',
+                'current' => $current[$cmid],
+                'fixed' => self::fixed_flags($savedfixed, $cmid),
+            ], $cmids));
+        } else if ($fixed === null) {
             $fixed = [];
             foreach ($savedfixed as $cmid => $flags) {
                 foreach (array_keys($flags) as $field) {
@@ -738,10 +753,7 @@ class activitydates {
                     'scheduled' => $proposed !== null,
                     'proposed' => $proposed,
                     'current' => $current[$cm->id],
-                    'fixed' => array_combine(
-                        self::FIELDS,
-                        array_map(fn($field) => !empty($savedfixed[$cmid][$field]), self::FIELDS)
-                    ),
+                    'fixed' => self::fixed_flags($savedfixed, $cmid),
                     'status' => $status,
                     'timeopen' => $instance->timeopen ?? 0,
                     'timeopenformatted' => empty($instance->timeopen)
@@ -772,6 +784,20 @@ class activitydates {
             }
         }
         return $rows;
+    }
+
+    /**
+     * A cm's saved Fix flags, for every field of FIELDS.
+     *
+     * @param array $savedfixed load_fixed()'s flags, cmid => [field => true].
+     * @param int $cmid the course module id.
+     * @return array field => bool.
+     */
+    private static function fixed_flags(array $savedfixed, int $cmid): array {
+        return array_combine(
+            self::FIELDS,
+            array_map(fn($field) => !empty($savedfixed[$cmid][$field]), self::FIELDS)
+        );
     }
 
     /**

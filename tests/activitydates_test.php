@@ -1370,6 +1370,54 @@ final class activitydates_test extends \advanced_testcase {
     }
 
     /**
+     * A closure for the fixed fields gets each cm's current values, selection and saved
+     * flags before the engine runs, and its fields are kept as an array's would be.
+     */
+    public function test_get_table_data_fixed_closure(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$course, [$quiz1, $quiz2]] = $this->graded_quizzes(2);
+        $DB->insert_record('tool_activitydates_fixed', (object) [
+            'courseid' => $course->id,
+            'cmid' => $quiz2->cmid,
+            'field' => 'timeclose',
+        ]);
+        $DB->set_field('quiz', 'timeclose', strtotime('2031-03-01 12:00'), ['id' => $quiz2->id]);
+        $manager = new activitydates();
+        $fromform = $this->fromform(['activitygroup' => $this->ticks([$quiz1, $quiz2])]);
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $held = strtotime('2031-02-01 09:00');
+
+        $seen = [];
+        $closure = function (array $rows) use (&$seen, $quiz1, $held): array {
+            $seen = array_column($rows, null, 'id');
+            return [(int) $quiz1->cmid => ['timeopen' => $held]];
+        };
+        $withclosure = $manager->get_table_data($settings, [$quiz1->cmid, $quiz2->cmid], true, $closure);
+        $witharray = $manager->get_table_data(
+            $settings,
+            [$quiz1->cmid, $quiz2->cmid],
+            true,
+            [(int) $quiz1->cmid => ['timeopen' => $held]]
+        );
+
+        $this->assertSame([(int) $quiz1->cmid, (int) $quiz2->cmid], array_keys($seen));
+        $this->assertSame('checked', $seen[$quiz2->cmid]['selected']);
+        $this->assertFalse($seen[$quiz2->cmid]['isheader']);
+        $this->assertSame(strtotime('2031-03-01 12:00'), $seen[$quiz2->cmid]['current']['timeclose']);
+        $this->assertTrue($seen[$quiz2->cmid]['fixed']['timeclose']);
+        $this->assertFalse($seen[$quiz1->cmid]['fixed']['timeclose']);
+
+        $proposed = fn(array $tabledata): array => array_column(
+            array_filter($tabledata, fn($row) => !$row['isheader']),
+            'proposed',
+            'id'
+        );
+        $this->assertSame($proposed($witharray), $proposed($withclosure));
+        $this->assertSame($held, $proposed($withclosure)[$quiz1->cmid]['timeopen']);
+    }
+
+    /**
      * Load the page as a user with both capabilities, post back exactly what it shows
      * (the enabled inputs, and the ticked, enabled Fix and note checkboxes), and save.
      *
