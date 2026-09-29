@@ -40,8 +40,9 @@ final class fingerprint {
      * sessionlength, activitiespersession, the close mode and its days or date,
      * the due mode and its days or date (when the type has a duedate column),
      * the lock mode and its days or date (when the lock dates are edited), and
-     * the selected cmids. hideunselected, resetunselected and the note options
-     * are excluded.
+     * the selected cmids. hideunselected, resetunselected, the note options and
+     * the Fix flags are excluded: a Fix flag keeps a value already in the table,
+     * so changing one does not make the table stale.
      *
      * @param \stdClass $settings settings object (tool_activitydates row shape, plus
      *   lockmode, lockdays and lockdate when $haslocks).

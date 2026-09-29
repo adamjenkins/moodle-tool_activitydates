@@ -355,6 +355,77 @@ final class schedule_test extends \basic_testcase {
     }
 
     /**
+     * A fixed field keeps its given value, and "after X days" counts from a fixed,
+     * set open date; the settings still move every unfixed date.
+     */
+    public function test_fixed_fields_kept(): void {
+        $settings = self::settings([
+            'closemode' => schedule::MODE_DAYS,
+            'closedays' => 3,
+            'duemode' => schedule::MODE_DAYS,
+            'duedays' => 2,
+            'lockmode' => schedule::MODE_DAYS,
+            'lockdays' => 10,
+        ]);
+        $fixedopen = self::ts('2030-01-08 12:00');
+        $fixedclose = self::ts('2030-03-01 10:00');
+        $fixed = [
+            11 => ['timeopen' => $fixedopen],
+            13 => ['timeclose' => $fixedclose],
+            // A fixed, cleared open counts from the session start.
+            14 => ['timeopen' => 0],
+        ];
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), true, self::tz(), true, $fixed);
+
+        $this->assertSame([
+            'timeopen' => $fixedopen,
+            'duedate' => self::ts('2030-01-10 12:00'),
+            'timeclose' => self::ts('2030-01-11 12:00'),
+            'timelock' => self::ts('2030-01-18 12:00'),
+        ], $result['dates'][11]);
+        // Unfixed: counted from the session start.
+        $this->assertSame(self::ts('2030-01-07 09:00'), $result['dates'][12]['timeopen']);
+        $this->assertSame(self::ts('2030-01-10 09:00'), $result['dates'][12]['timeclose']);
+        $this->assertSame(self::ts('2030-01-14 09:00'), $result['dates'][13]['timeopen']);
+        $this->assertSame($fixedclose, $result['dates'][13]['timeclose']);
+        $this->assertSame(self::ts('2030-01-16 09:00'), $result['dates'][13]['duedate']);
+        $this->assertSame(0, $result['dates'][14]['timeopen']);
+        $this->assertSame(self::ts('2030-01-17 09:00'), $result['dates'][14]['timeclose']);
+
+        // The settings change: the unfixed dates move, the fixed ones stay. Every
+        // activity keeps its session slot.
+        $settings->sessionlength = 14;
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), true, self::tz(), true, $fixed);
+        $this->assertSame(self::ts('2030-01-21 09:00'), $result['windows'][1]['start']);
+        $this->assertSame($fixedopen, $result['dates'][11]['timeopen']);
+        $this->assertSame(self::ts('2030-01-21 09:00'), $result['dates'][13]['timeopen']);
+        $this->assertSame($fixedclose, $result['dates'][13]['timeclose']);
+
+        // Session mode still closes at the session end, even after a fixed open.
+        $settings = self::settings(['lockmode' => schedule::MODE_SESSION]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), false, self::tz(), true, $fixed);
+        $this->assertSame($fixedopen, $result['dates'][11]['timeopen']);
+        $this->assertSame(self::ts('2030-01-14 09:00'), $result['dates'][11]['timeclose']);
+        $this->assertSame(self::ts('2030-01-14 09:00'), $result['dates'][11]['timelock']);
+
+        // A fixed field that does not apply stays null, and an unscheduled cm stays unscheduled.
+        $fixed = [11 => ['duedate' => $fixedclose, 'timelock' => $fixedclose], 12 => ['timeopen' => $fixedopen]];
+        $result = schedule::compute(self::settings(), [11, 12, 13, 14], [11 => true], false, self::tz(), true, $fixed);
+        $this->assertNull($result['dates'][11]['duedate']);
+        $this->assertNull($result['dates'][11]['timelock']);
+        $this->assertNull($result['dates'][12]);
+
+        // A lock-only type keeps a fixed lock date.
+        $settings = self::settings(['lockmode' => schedule::MODE_DAYS, 'lockdays' => 3]);
+        $fixed = [11 => ['timelock' => $fixedclose, 'timeopen' => $fixedopen]];
+        $result = schedule::compute($settings, [11, 12, 13, 14], [11 => true], false, self::tz(), false, $fixed);
+        $this->assertSame(
+            ['timeopen' => null, 'duedate' => null, 'timeclose' => null, 'timelock' => $fixedclose],
+            $result['dates'][11]
+        );
+    }
+
+    /**
      * An unknown close or due mode is a coding error.
      */
     public function test_unknown_mode_throws(): void {

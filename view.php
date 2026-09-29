@@ -168,12 +168,26 @@ if ($fromform = $mform->get_data()) {
                 \core\notification::error(get_string('errorrows', 'tool_activitydates', count($rowerrors)));
                 $rowinputs = $inputs;
             } else {
+                $coursenotecmids = [];
+                if ($canlocks) {
+                    $coursenotecmids = array_values(array_intersect(
+                        $validcmids,
+                        array_map('intval', optional_param_array('shownotecourse_cmids', [], PARAM_INT))
+                    ));
+                }
+                // The Fix flags; save() keeps only those of selected rows and permitted fields.
+                $fixposted = [];
+                foreach (activitydates::FIELDS as $field) {
+                    $fixposted[$field] = optional_param_array('fix_' . $field, [], PARAM_BOOL);
+                }
                 $result = $manager->save(
                     $submitted,
                     $courseid,
                     $tabledata,
                     $values,
                     $notecmids ?? [],
+                    $coursenotecmids,
+                    $fixposted,
                     $canmanage,
                     $canlocks,
                     $hasdates

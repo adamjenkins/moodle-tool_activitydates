@@ -31,6 +31,12 @@ class activitydates {
     /** @var string strftime format producing a valid <time> datetime attribute value. */
     private const DATETIMEATTRFORMAT = '%Y-%m-%dT%H:%M';
 
+    /** @var string[] the table's date fields, which each carry a Fix flag. */
+    public const FIELDS = ['timeopen', 'duedate', 'timeclose', 'timelock'];
+
+    /** @var string[] the fields whose Fix flag needs tool/activitydates:manage (timelock needs :managelocks). */
+    private const DATEFIELDS = ['timeopen', 'duedate', 'timeclose'];
+
     /**
      * Upsert the course's activity dates configuration and its selections.
      *
@@ -71,17 +77,21 @@ class activitydates {
      *   dates, the table's open, due and close values (never the lock date) and the
      *   hide/reset treatment of unselected rows;
      * - with $canlocks: the lock configuration, the lock selection with each row's
-     *   note setting, and, unless the lock mode is none, the table's lock value of
-     *   each selected, scheduled row with a grade item (0 clears the lock). With the
-     *   lock "reset unselected" option, the locks of the unselected rows are cleared,
-     *   whatever the lock mode.
+     *   activity-page and course-page note settings, and, unless the lock mode is
+     *   none, the table's lock value of each selected, scheduled row with a grade
+     *   item (0 clears the lock). With the lock "reset unselected" option, the locks
+     *   of the unselected rows are cleared, whatever the lock mode;
+     * - the Fix flags of the selected rows, each field with its capability (see
+     *   save_fixed()).
      *
      * @param \stdClass $fromform submitted form data.
      * @param int $courseid the course ID.
      * @param array $tabledata rows from get_table_data() for the submitted settings and selection.
      * @param array $values datefields::validate_dates()'s values: cmid => ['timeopen' => int,
      *     'duedate' => ?int, 'timeclose' => int, 'timelock' => ?int].
-     * @param int[] $shownotecmids the cmids whose lock note is ticked.
+     * @param int[] $shownotecmids the cmids whose lock note is ticked for the activity page.
+     * @param int[] $shownotecoursecmids the cmids whose lock note is ticked for the course page.
+     * @param array $fixposted the posted Fix flags: field => [cmid => 1].
      * @param bool $canmanage whether the user has tool/activitydates:manage.
      * @param bool $canlocks whether the user has tool/activitydates:managelocks.
      * @param bool $hasdates whether the type has open and close dates.
@@ -93,6 +103,8 @@ class activitydates {
         array $tabledata,
         array $values,
         array $shownotecmids,
+        array $shownotecoursecmids,
+        array $fixposted,
         bool $canmanage,
         bool $canlocks,
         bool $hasdates
@@ -110,7 +122,7 @@ class activitydates {
 
         if ($canlocks) {
             $settings = self::settings_from_form($fromform, $courseid, 0);
-            $this->save_lock_config($settings, $courseid, $tabledata, $shownotecmids);
+            $this->save_lock_config($settings, $courseid, $tabledata, $shownotecmids, $shownotecoursecmids);
 
             $lockdates = [];
             foreach ($tabledata as $row) {
@@ -132,29 +144,125 @@ class activitydates {
             }
             event\locks_updated::create(['context' => $context])->trigger();
         }
+
+        $selectedcmids = [];
+        foreach ($tabledata as $row) {
+            if (!$row['isheader'] && $row['selected'] === 'checked') {
+                $selectedcmids[] = (int) $row['id'];
+            }
+        }
+        // A lock-only type has no open, due or close date to fix.
+        $this->save_fixed($courseid, $selectedcmids, $fixposted, $canmanage && $hasdates, $canlocks);
         return $result;
     }
 
     /**
+     * The saved Fix flags of the given cms.
+     *
+     * @param int $courseid the course ID.
+     * @param int[] $cmids the cms to read.
+     * @return array cmid => [field => true], only for cms with a flag.
+     */
+    public static function load_fixed(int $courseid, array $cmids): array {
+        global $DB;
+        if (!$cmids) {
+            return [];
+        }
+        [$insql, $params] = $DB->get_in_or_equal(array_map('intval', $cmids), SQL_PARAMS_NAMED);
+        $records = $DB->get_records_select(
+            'tool_activitydates_fixed',
+            "courseid = :courseid AND cmid $insql",
+            ['courseid' => $courseid] + $params,
+            'cmid, field',
+            'id, cmid, field'
+        );
+        $fixed = [];
+        foreach ($records as $record) {
+            $fixed[(int) $record->cmid][$record->field] = true;
+        }
+        return $fixed;
+    }
+
+    /**
+     * Replace the Fix flags of the given (selected, valid) cms with the posted ones,
+     * for the fields the user may set: open, due and close with $canmanage, the lock
+     * date with $canlocks. Flags of other cms, and of fields the user may not set,
+     * are left alone; posted flags of other cms are ignored.
+     *
+     * @param int $courseid the course ID.
+     * @param int[] $validcmids the selected cms of this course and type whose flags are replaced.
+     * @param array $posted field => [cmid => 1], read with optional_param_array(..., PARAM_BOOL).
+     * @param bool $canmanage whether the open, due and close flags may be set.
+     * @param bool $canlocks whether the lock date flag may be set.
+     */
+    public function save_fixed(int $courseid, array $validcmids, array $posted, bool $canmanage, bool $canlocks): void {
+        global $DB;
+        $fields = array_merge($canmanage ? self::DATEFIELDS : [], $canlocks ? ['timelock'] : []);
+        $validcmids = array_map('intval', $validcmids);
+        if (!$fields || !$validcmids) {
+            return;
+        }
+        [$cmsql, $cmparams] = $DB->get_in_or_equal($validcmids, SQL_PARAMS_NAMED, 'cm');
+        [$fieldsql, $fieldparams] = $DB->get_in_or_equal($fields, SQL_PARAMS_NAMED, 'field');
+        $records = $DB->get_records_select(
+            'tool_activitydates_fixed',
+            "cmid $cmsql AND field $fieldsql",
+            $cmparams + $fieldparams,
+            '',
+            'id, cmid, field'
+        );
+        $existing = [];
+        foreach ($records as $record) {
+            $existing[(int) $record->cmid][$record->field] = (int) $record->id;
+        }
+
+        $now = time();
+        $transaction = $DB->start_delegated_transaction();
+        foreach ($validcmids as $cmid) {
+            foreach ($fields as $field) {
+                $wanted = !empty($posted[$field][$cmid]);
+                $id = $existing[$cmid][$field] ?? null;
+                if ($wanted && $id === null) {
+                    $DB->insert_record('tool_activitydates_fixed', (object) [
+                        'courseid' => $courseid,
+                        'cmid' => $cmid,
+                        'field' => $field,
+                        'timemodified' => $now,
+                    ]);
+                } else if (!$wanted && $id !== null) {
+                    $DB->delete_records('tool_activitydates_fixed', ['id' => $id]);
+                }
+            }
+        }
+        $transaction->allow_commit();
+    }
+
+    /**
      * Upsert the course's lock configuration and rewrite the lock selection of
-     * the table's activities, each with its note setting. Lock selections of
-     * activities of other types are kept.
+     * the table's activities, each with its activity-page and course-page note
+     * settings. Lock selections of activities of other types are kept.
      *
      * @param \stdClass $settings settings from settings_from_form().
      * @param int $courseid the course ID.
      * @param array $tabledata rows from get_table_data().
-     * @param int[] $shownotecmids the cmids whose lock note is ticked.
+     * @param int[] $shownotecmids the cmids whose lock note is ticked for the activity page.
+     * @param int[] $shownotecoursecmids the cmids whose lock note is ticked for the course page.
      */
-    private function save_lock_config(\stdClass $settings, int $courseid, array $tabledata, array $shownotecmids): void {
+    private function save_lock_config(
+        \stdClass $settings,
+        int $courseid,
+        array $tabledata,
+        array $shownotecmids,
+        array $shownotecoursecmids
+    ): void {
         global $DB;
         $notes = array_fill_keys(array_map('intval', $shownotecmids), true);
+        $coursenotes = array_fill_keys(array_map('intval', $shownotecoursecmids), true);
         $record = (object) [
             'courseid' => $courseid,
             'lockmode' => $settings->lockmode,
             'lockdays' => $settings->lockdays,
             'lockdate' => $settings->lockdate,
-            'shownote' => $settings->shownote,
-            'shownotecoursepage' => $settings->shownotecoursepage,
             'resetunselected' => $settings->lockresetunselected,
             'timemodified' => time(),
         ];
@@ -192,6 +300,7 @@ class activitydates {
                 'lockid' => $record->id,
                 'cmid' => $cmid,
                 'shownote' => isset($notes[$cmid]) ? 1 : 0,
+                'shownotecoursepage' => isset($coursenotes[$cmid]) ? 1 : 0,
             ]);
         }
         $transaction->allow_commit();
@@ -204,8 +313,8 @@ class activitydates {
      * cap. Unknown modes fall back to the defaults, and absent due fields (types
      * without a duedate column) get the defaults.
      *
-     * The lock fields (lockmode, lockdays, lockdate, shownote, shownotecoursepage and
-     * lockresetunselected) are read when present. Absent ones (a user without
+     * The lock fields (lockmode, lockdays, lockdate and lockresetunselected) are
+     * read when present. The note options are per row (see save()), not settings. Absent ones (a user without
      * :managelocks gets no lock controls) fall back to the course's saved lock
      * configuration, then to the site defaults.
      *
@@ -242,8 +351,6 @@ class activitydates {
             'lockmode' => $mode($lockvalue('lockmode', 'lockmode'), local\schedule::MODE_NONE),
             'lockdays' => (int) $lockvalue('lockdays', 'lockdays'),
             'lockdate' => (int) $lockvalue('lockdate', 'lockdate'),
-            'shownote' => (int) !empty($lockvalue('shownote', 'shownote')),
-            'shownotecoursepage' => (int) !empty($lockvalue('shownotecoursepage', 'shownotecoursepage')),
             'lockresetunselected' => (int) !empty($lockvalue('lockresetunselected', 'resetunselected')),
         ];
     }
@@ -252,7 +359,7 @@ class activitydates {
      * The saved lock configuration, or the site defaults when there is none.
      *
      * @param \stdClass|null $lock the course's tool_activitydates_lock row, or null.
-     * @return \stdClass lockmode, lockdays, lockdate, shownote, shownotecoursepage and resetunselected.
+     * @return \stdClass lockmode, lockdays, lockdate and resetunselected.
      */
     private static function lock_defaults(?\stdClass $lock): \stdClass {
         $config = fn(string $name, $default) => get_config('tool_activitydates', $name) !== false
@@ -261,8 +368,6 @@ class activitydates {
             'lockmode' => (string) ($lock->lockmode ?? $config('lockmode', local\schedule::MODE_NONE)),
             'lockdays' => (int) ($lock->lockdays ?? $config('lockdays', 7)),
             'lockdate' => (int) ($lock->lockdate ?? 0),
-            'shownote' => (int) ($lock->shownote ?? $config('lockshownote', 1)),
-            'shownotecoursepage' => (int) ($lock->shownotecoursepage ?? $config('lockshownotecoursepage', 0)),
             'resetunselected' => (int) ($lock->resetunselected ?? 0),
         ];
     }
@@ -305,8 +410,6 @@ class activitydates {
             : (int) $settings->schedulestart + 14 * DAYSECS;
         $lockdate = $lockdefaults->lockdate ?: $fallbackdate;
         $settings->lockdate = $lockdate - $lockdate % MINSECS;
-        $settings->shownote = $lockdefaults->shownote;
-        $settings->shownotecoursepage = $lockdefaults->shownotecoursepage;
         $settings->lockresetunselected = $lockdefaults->resetunselected;
         return $settings;
     }
@@ -433,15 +536,21 @@ class activitydates {
      * enabled, when it would start after the finish date.
      *
      * Data rows carry the current dates and, beside them:
+     * - current: ['timeopen' => int, 'duedate' => ?int, 'timeclose' => int, 'timelock' => int],
+     *   the activity's current values (0 when unset; duedate null when the type has
+     *   no duedate column; timelock the earliest grade item locktime);
+     * - fixed: field => bool, the saved Fix flags of the cm (every field of FIELDS);
      * - scheduled: whether the cm is selected and in a window;
      * - proposed: the engine's ['timeopen', 'duedate', 'timeclose', 'timelock'], or null;
+     *   a fixed field's proposal is its fixed value;
      * - status: '' for scheduled rows, else the lang key of what Save does to
      *   the row (rowstatus_reset wins over rowstatus_hidden: a reset is not
      *   undone by showing the activity again);
      * - duedate: the current due date, null when the type has no duedate column;
      * - locktime: the current lock date (the earliest grade item locktime, 0 if none);
      * - hasgradeitem: whether the cm has a grade item;
-     * - shownote: the cm's saved lock note setting, else the settings' default.
+     * - shownote, shownotecoursepage: the cm's saved activity-page and course-page
+     *   lock note settings, else the site defaults (lockshownote, lockshownotecoursepage).
      *
      * For a lock-only type ($hasdates false) the module's timeopen and timeclose
      * are not read (the columns do not exist): the current open, due and close
@@ -450,30 +559,70 @@ class activitydates {
      * @param \stdClass $settings settings object (tool_activitydates row shape, optionally with the lock fields).
      * @param array $selectedcmids the selected cmids.
      * @param bool $hasdates whether the type has open and close dates.
+     * @param array|null $fixed the fixed fields for the engine, cmid => [field => int]; null uses
+     *   the saved Fix flags with the current values (page load and Save).
      * @return array list of header/data rows.
      */
-    public function get_table_data(\stdClass $settings, array $selectedcmids, bool $hasdates = true): array {
+    public function get_table_data(\stdClass $settings, array $selectedcmids, bool $hasdates = true, ?array $fixed = null): array {
         global $DB;
         $modules = self::get_modules($settings);
         $cmids = array_map('intval', array_keys($modules));
         $selected = array_fill_keys(array_map('intval', $selectedcmids), true);
         $hasdue = $hasdates && self::has_duedate($settings->modtype);
+        $courseid = (int) $settings->courseid;
+        $lockmanager = new locks\manager();
+        $savedfixed = self::load_fixed($courseid, $cmids);
+
+        // The current values of every cm, which the saved Fix flags keep.
+        $fields = 'id, intro' . ($hasdates ? ', timeopen, timeclose' : '') . ($hasdue ? ', duedate' : '');
+        $instances = [];
+        $current = [];
+        foreach ($modules as $cmid => $cm) {
+            $instance = $DB->get_record($settings->modtype, ['id' => $cm->instance], $fields);
+            $instances[$cmid] = $instance;
+            $current[$cmid] = [
+                'timeopen' => (int) ($instance->timeopen ?? 0),
+                'duedate' => $hasdue ? (int) ($instance->duedate ?? 0) : null,
+                'timeclose' => (int) ($instance->timeclose ?? 0),
+                'timelock' => $lockmanager->current_locktime($courseid, $cm),
+            ];
+        }
+        if ($fixed === null) {
+            $fixed = [];
+            foreach ($savedfixed as $cmid => $flags) {
+                foreach (array_keys($flags) as $field) {
+                    if (isset($current[$cmid][$field])) {
+                        $fixed[$cmid][$field] = $current[$cmid][$field];
+                    }
+                }
+            }
+        }
+
         $computed = local\schedule::compute(
             $settings,
             $cmids,
             $selected,
             $hasdue,
             \core_date::get_user_timezone_object(),
-            $hasdates
+            $hasdates,
+            $fixed
         );
 
-        // A saved lock note setting wins over the default for new selections.
+        // A saved lock note setting wins over the site default for new selections.
         $savednotes = [];
-        $lockid = $DB->get_field('tool_activitydates_lock', 'id', ['courseid' => $settings->courseid]);
+        $lockid = $DB->get_field('tool_activitydates_lock', 'id', ['courseid' => $courseid]);
         if ($lockid) {
-            $savednotes = $DB->get_records_menu('tool_activitydates_lockitem', ['lockid' => $lockid], '', 'cmid, shownote');
+            $savednotes = $DB->get_records(
+                'tool_activitydates_lockitem',
+                ['lockid' => $lockid],
+                '',
+                'cmid, shownote, shownotecoursepage'
+            );
         }
-        $lockmanager = new locks\manager();
+        $config = fn(string $name, $default) => get_config('tool_activitydates', $name) !== false
+            ? get_config('tool_activitydates', $name) : $default;
+        $defaultnote = !empty($config('lockshownote', 1));
+        $defaultcoursenote = !empty($config('lockshownotecoursepage', 0));
 
         // Add display strings so the template needs no date logic of its own.
         $dateformat = get_string('dateformat', 'tool_activitydates');
@@ -488,20 +637,20 @@ class activitydates {
             $windows[$chunkkey]['endattr'] = userdate($window['end'], self::DATETIMEATTRFORMAT, 99, false, false);
         }
 
-        $fields = 'id, intro' . ($hasdates ? ', timeopen, timeclose' : '') . ($hasdue ? ', duedate' : '');
         $chunksize = max(1, (int) $settings->activitiespersession);
         $rows = [];
         foreach (array_chunk($modules, $chunksize, true) as $chunkkey => $chunk) {
             $window = $windows[$chunkkey];
             $rows[] = ['isheader' => true, 'dates' => $window];
             foreach ($chunk as $cm) {
-                $instance = $DB->get_record($settings->modtype, ['id' => $cm->instance], $fields);
+                $cmid = (int) $cm->id;
+                $instance = $instances[$cm->id];
                 $questioncount = null;
                 if ($settings->modtype === 'quiz') {
                     $questioncount = $DB->count_records('quiz_slots', ['quizid' => $cm->instance]);
                 }
-                $isselected = isset($selected[(int) $cm->id]);
-                $proposed = $computed['dates'][(int) $cm->id] ?? null;
+                $isselected = isset($selected[$cmid]);
+                $proposed = $computed['dates'][$cmid] ?? null;
                 if ($proposed !== null) {
                     $status = '';
                 } else if ($hasdates && !$isselected && !empty($settings->resetunselected)) {
@@ -511,7 +660,8 @@ class activitydates {
                 } else {
                     $status = 'rowstatus_notscheduled';
                 }
-                $duedate = $hasdue ? (int) ($instance->duedate ?? 0) : null;
+                $duedate = $current[$cm->id]['duedate'];
+                $note = $savednotes[$cm->id] ?? null;
                 $rows[] = [
                     'isheader' => false,
                     'cm' => $cm,
@@ -523,6 +673,11 @@ class activitydates {
                     'dates' => $window,
                     'scheduled' => $proposed !== null,
                     'proposed' => $proposed,
+                    'current' => $current[$cm->id],
+                    'fixed' => array_combine(
+                        self::FIELDS,
+                        array_map(fn($field) => !empty($savedfixed[$cmid][$field]), self::FIELDS)
+                    ),
                     'status' => $status,
                     'timeopen' => $instance->timeopen ?? 0,
                     'timeopenformatted' => empty($instance->timeopen)
@@ -538,10 +693,10 @@ class activitydates {
                         ? '' : userdate($instance->timeclose, $dateformat),
                     'timecloseattr' => empty($instance->timeclose)
                         ? '' : userdate($instance->timeclose, self::DATETIMEATTRFORMAT, 99, false, false),
-                    'locktime' => $lockmanager->current_locktime((int) $settings->courseid, $cm),
-                    'hasgradeitem' => $lockmanager->has_grade_item((int) $settings->courseid, $cm),
-                    'shownote' => isset($savednotes[$cm->id])
-                        ? (bool) $savednotes[$cm->id] : !empty($settings->shownote),
+                    'locktime' => $current[$cm->id]['timelock'],
+                    'hasgradeitem' => $lockmanager->has_grade_item($courseid, $cm),
+                    'shownote' => $note ? (bool) $note->shownote : $defaultnote,
+                    'shownotecoursepage' => $note ? (bool) $note->shownotecoursepage : $defaultcoursenote,
                 ];
             }
         }

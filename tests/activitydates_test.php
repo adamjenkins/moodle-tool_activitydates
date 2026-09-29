@@ -952,7 +952,7 @@ final class activitydates_test extends \advanced_testcase {
         $values = $this->proposed_values($tabledata);
         $this->assertNull($values[$quiz1->cmid]['timelock']);
 
-        $result = $manager->save($fromform, $course->id, $tabledata, $values, [], true, true, true);
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [], [], [], true, true, true);
 
         $this->assertSame(0, $result['locks']);
         $this->assertSame(2, $result['dates']);
@@ -991,7 +991,7 @@ final class activitydates_test extends \advanced_testcase {
         $values = $this->proposed_values($tabledata);
         $this->assertNotEquals($oldopen, $values[$quiz1->cmid]['timeopen']);
 
-        $result = $manager->save($fromform, $course->id, $tabledata, $values, [$quiz1->cmid], false, true, true);
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [$quiz1->cmid], [], [], false, true, true);
 
         $this->assertSame(0, $result['dates']);
         foreach ([$quiz1, $quiz2] as $quiz) {
@@ -1019,7 +1019,7 @@ final class activitydates_test extends \advanced_testcase {
         $values = $this->proposed_values($tabledata);
         $this->assertSame(strtotime('2030-01-08 09:00'), $values[$quiz1->cmid]['timelock']);
 
-        $result = $manager->save($fromform, $course->id, $tabledata, $values, [$quiz1->cmid], true, false, true);
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [$quiz1->cmid], [], [], true, false, true);
 
         $this->assertSame(0, $result['locks']);
         $this->assertSame(0, $this->locktime($course->id, 'quiz', $quiz1->id));
@@ -1070,7 +1070,7 @@ final class activitydates_test extends \advanced_testcase {
 
         $forged = strtotime('2030-02-01 09:00');
         $values = [$assign1->cmid => ['timeopen' => $forged, 'duedate' => $forged, 'timeclose' => $forged, 'timelock' => $lock]];
-        $result = $manager->save($fromform, $course->id, $tabledata, $values, [], true, true, false);
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [], [], [], true, true, false);
 
         $this->assertSame(['dates' => 0, 'locks' => 1], $result);
         $this->assertEquals($before, $DB->get_records('assign', ['course' => $course->id]));
@@ -1094,8 +1094,6 @@ final class activitydates_test extends \advanced_testcase {
 
         $fromform = $this->fromform([
             'lockmode' => 'session',
-            'shownote' => 0,
-            'shownotecoursepage' => 1,
             'activitygroup' => $this->ticks([$quiz1, $quiz2, $quiz3]),
         ]);
         $manager = new activitydates();
@@ -1108,7 +1106,7 @@ final class activitydates_test extends \advanced_testcase {
         $values[$quiz3->cmid]['timelock'] = 0;
 
         $sink = $this->redirectEvents();
-        $result = $manager->save($fromform, $course->id, $tabledata, $values, [$quiz1->cmid], true, true, true);
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [$quiz1->cmid], [$quiz2->cmid], [], true, true, true);
         $events = array_map(fn($event) => get_class($event), $sink->get_events());
         $sink->close();
 
@@ -1122,8 +1120,6 @@ final class activitydates_test extends \advanced_testcase {
         $lock = $DB->get_record('tool_activitydates_lock', ['courseid' => $course->id], '*', MUST_EXIST);
         $this->assertEquals($lockid, $lock->id);
         $this->assertSame('session', $lock->lockmode);
-        $this->assertEquals(0, $lock->shownote);
-        $this->assertEquals(1, $lock->shownotecoursepage);
         $this->assertEquals(0, $lock->resetunselected);
         $notes = $DB->get_records_menu('tool_activitydates_lockitem', ['lockid' => $lockid], '', 'cmid, shownote');
         $this->assertEquals([
@@ -1132,6 +1128,13 @@ final class activitydates_test extends \advanced_testcase {
             $quiz2->cmid => 0,
             $quiz3->cmid => 0,
         ], $notes);
+        $coursenotes = $DB->get_records_menu('tool_activitydates_lockitem', ['lockid' => $lockid], '', 'cmid, shownotecoursepage');
+        $this->assertEquals([
+            $assign->cmid => 0,
+            $quiz1->cmid => 0,
+            $quiz2->cmid => 1,
+            $quiz3->cmid => 0,
+        ], $coursenotes);
 
         // The table shows the current lock state and the saved note settings.
         $rows = array_values(array_filter(
@@ -1141,6 +1144,7 @@ final class activitydates_test extends \advanced_testcase {
         $this->assertSame([strtotime('2030-01-08 09:00'), $custom, 0], array_column($rows, 'locktime'));
         $this->assertSame([true, true, true], array_column($rows, 'hasgradeitem'));
         $this->assertSame([true, false, false], array_column($rows, 'shownote'));
+        $this->assertSame([false, true, false], array_column($rows, 'shownotecoursepage'));
     }
 
     /**
@@ -1166,7 +1170,8 @@ final class activitydates_test extends \advanced_testcase {
         $rows = array_values(array_filter($tabledata, fn($row) => !$row['isheader']));
         $this->assertSame([true, true, false], array_column($rows, 'hasgradeitem'));
 
-        $result = $manager->save($fromform, $course->id, $tabledata, $this->proposed_values($tabledata), [], false, true, true);
+        $values = $this->proposed_values($tabledata);
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, [], [], [], false, true, true);
 
         $this->assertSame(1, $result['locks']);
         $this->assertSame($existing, $this->locktime($course->id, 'quiz', $quiz1->id));
@@ -1187,17 +1192,16 @@ final class activitydates_test extends \advanced_testcase {
         $this->assertSame('none', $settings->lockmode);
         $this->assertSame(7, $settings->lockdays);
         $this->assertSame(0, $settings->lockdate);
-        $this->assertSame(1, $settings->shownote);
-        $this->assertSame(0, $settings->shownotecoursepage);
         $this->assertSame(0, $settings->lockresetunselected);
+        // The note options are per row now, not settings.
+        $this->assertFalse(property_exists($settings, 'shownote'));
+        $this->assertFalse(property_exists($settings, 'shownotecoursepage'));
 
         $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
             'courseid' => $course->id,
             'lockmode' => 'date',
             'lockdays' => 4,
             'lockdate' => 1900000000,
-            'shownote' => 0,
-            'shownotecoursepage' => 1,
             'resetunselected' => 1,
         ]);
         $settings = activitydates::settings_from_form($this->fromform(), $course->id, 0);
@@ -1205,8 +1209,6 @@ final class activitydates_test extends \advanced_testcase {
         $this->assertSame('date', $settings->lockmode);
         $this->assertSame(4, $settings->lockdays);
         $this->assertSame(1900000000, $settings->lockdate);
-        $this->assertSame(0, $settings->shownote);
-        $this->assertSame(1, $settings->shownotecoursepage);
         $this->assertSame(1, $settings->lockresetunselected);
 
         $settings = activitydates::settings_from_form($this->fromform([
@@ -1214,15 +1216,15 @@ final class activitydates_test extends \advanced_testcase {
             'lockdays' => '9',
             'lockdate' => '1900000060',
             'shownote' => '1',
-            'shownotecoursepage' => '',
+            'shownotecoursepage' => '1',
             'lockresetunselected' => '0',
         ]), $course->id, 0);
         $this->assertSame('days', $settings->lockmode);
         $this->assertSame(9, $settings->lockdays);
         $this->assertSame(1900000060, $settings->lockdate);
-        $this->assertSame(1, $settings->shownote);
-        $this->assertSame(0, $settings->shownotecoursepage);
         $this->assertSame(0, $settings->lockresetunselected);
+        $this->assertFalse(property_exists($settings, 'shownote'));
+        $this->assertFalse(property_exists($settings, 'shownotecoursepage'));
 
         // An unknown lock mode falls back to none.
         $settings = activitydates::settings_from_form($this->fromform(['lockmode' => 'bogus']), $course->id, 0);
@@ -1260,8 +1262,6 @@ final class activitydates_test extends \advanced_testcase {
             'lockmode' => 'date',
             'lockdays' => 3,
             'lockdate' => strtotime('2030-03-01 10:00') + 42,
-            'shownote' => 0,
-            'shownotecoursepage' => 1,
             'resetunselected' => 1,
         ]);
         $settings = activitydates::load_settings($course->id, 'quiz');
@@ -1276,12 +1276,256 @@ final class activitydates_test extends \advanced_testcase {
         $this->assertSame('date', $settings->lockmode);
         $this->assertSame(3, $settings->lockdays);
         $this->assertSame(strtotime('2030-03-01 10:00'), $settings->lockdate);
-        $this->assertSame(0, $settings->shownote);
-        $this->assertSame(1, $settings->shownotecoursepage);
         $this->assertSame(1, $settings->lockresetunselected);
 
         // An unset lock date defaults to the finish date.
         $DB->set_field('tool_activitydates_lock', 'lockdate', 0, ['id' => $lockid]);
         $this->assertSame(strtotime('2030-01-15 17:00'), activitydates::load_settings($course->id, 'quiz')->lockdate);
+    }
+
+    /**
+     * The saved Fix flags of a course, as sorted "cmid:field" strings.
+     *
+     * @param int $courseid the course id.
+     * @return string[]
+     */
+    private function flags(int $courseid): array {
+        global $DB;
+        $flags = array_map(
+            fn($record) => $record->cmid . ':' . $record->field,
+            $DB->get_records('tool_activitydates_fixed', ['courseid' => $courseid])
+        );
+        sort($flags);
+        return array_values($flags);
+    }
+
+    /**
+     * Fix flags are stored only for the fields the user may set, only for the selected
+     * cms of the course; other flags are kept.
+     */
+    public function test_fix_flags_capabilities_and_scope(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$course, [$quiz1, $quiz2]] = $this->graded_quizzes(2);
+        [$other, [$otherquiz]] = $this->graded_quizzes(1);
+        // A saved flag on the unselected quiz2.
+        $DB->insert_record('tool_activitydates_fixed', (object) [
+            'courseid' => $course->id,
+            'cmid' => $quiz2->cmid,
+            'field' => 'timeclose',
+        ]);
+        $manager = new activitydates();
+        $fromform = $this->fromform(['lockmode' => 'session', 'activitygroup' => $this->ticks([$quiz1])]);
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $tabledata = $manager->get_table_data($settings, [$quiz1->cmid]);
+        $values = $this->proposed_values($tabledata);
+        $posted = [
+            'timeopen' => [$quiz1->cmid => 1, $quiz2->cmid => 1, $otherquiz->cmid => 1],
+            'timeclose' => [$otherquiz->cmid => 1],
+            'timelock' => [$quiz1->cmid => 1, $otherquiz->cmid => 1],
+        ];
+
+        // A :manage-only user: the open flag only; no lock flag, no flag of an unselected or foreign cm.
+        $manager->save($fromform, $course->id, $tabledata, $values, [], [], $posted, true, false, true);
+        $this->assertSame([$quiz1->cmid . ':timeopen', $quiz2->cmid . ':timeclose'], $this->flags($course->id));
+        $this->assertSame([], $this->flags($other->id));
+        $this->assertSame(0, $DB->count_records_select('tool_activitydates_fixed', 'cmid = ?', [$otherquiz->cmid]));
+
+        // A :managelocks-only user: the lock flag; the open flag is neither cleared nor added to.
+        $posted = [
+            'timeclose' => [$quiz1->cmid => 1],
+            'timelock' => [$quiz1->cmid => 1, $otherquiz->cmid => 1],
+        ];
+        $manager->save($fromform, $course->id, $tabledata, $values, [], [], $posted, false, true, true);
+        $this->assertSame(
+            [$quiz1->cmid . ':timelock', $quiz1->cmid . ':timeopen', $quiz2->cmid . ':timeclose'],
+            $this->flags($course->id)
+        );
+        $this->assertSame(0, $DB->count_records_select('tool_activitydates_fixed', 'cmid = ?', [$otherquiz->cmid]));
+
+        // Unticking clears the flags the user may set.
+        $manager->save($fromform, $course->id, $tabledata, $values, [], [], [], true, true, true);
+        $this->assertSame([$quiz2->cmid . ':timeclose'], $this->flags($course->id));
+
+        // The save_fixed() method itself ignores cmids that are not given as valid.
+        $manager->save_fixed($course->id, [$quiz1->cmid], ['timeopen' => [$otherquiz->cmid => 1]], true, true);
+        $this->assertSame([$quiz2->cmid . ':timeclose'], $this->flags($course->id));
+        $this->assertSame([], $this->flags($other->id));
+
+        // The load_fixed() method reads them back, and the rows carry them.
+        $this->assertSame(
+            [(int) $quiz2->cmid => ['timeclose' => true]],
+            activitydates::load_fixed($course->id, [$quiz1->cmid, $quiz2->cmid, $otherquiz->cmid])
+        );
+        $rows = array_values(array_filter($manager->get_table_data($settings, [$quiz1->cmid]), fn($row) => !$row['isheader']));
+        $this->assertSame(
+            ['timeopen' => false, 'duedate' => false, 'timeclose' => true, 'timelock' => false],
+            $rows[1]['fixed']
+        );
+    }
+
+    /**
+     * Save straight after load writes back the current values: the dates, locks,
+     * notes and Fix flags are unchanged, and an unset date is posted empty.
+     */
+    public function test_save_after_load_is_noop(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$course, [$quiz1, $quiz2, $quiz3]] = $this->graded_quizzes(3);
+        $manager = new activitydates();
+        $manager->update($this->fromform(['activitygroup' => $this->ticks([$quiz1, $quiz2, $quiz3])]), $course->id);
+        $DB->update_record('quiz', (object) [
+            'id' => $quiz1->id,
+            'timeopen' => strtotime('2029-03-01 09:00'),
+            'timeclose' => strtotime('2029-03-09 18:30'),
+        ]);
+        $DB->update_record('quiz', (object) ['id' => $quiz2->id, 'timeopen' => strtotime('2029-04-01 09:00'), 'timeclose' => 0]);
+        $DB->update_record('quiz', (object) ['id' => $quiz3->id, 'timeopen' => 0, 'timeclose' => 0]);
+        (new locks\manager())->apply_locks([$quiz1->cmid => strtotime('2029-05-01 12:00')], 'quiz', $course->id, false);
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
+            'courseid' => $course->id,
+            'lockmode' => 'session',
+            'lockdays' => 7,
+            'lockdate' => strtotime('2030-02-01 09:00'),
+        ]);
+        foreach ([[$quiz1, 1, 1], [$quiz2, 0, 0], [$quiz3, 1, 0]] as [$quiz, $shownote, $coursepage]) {
+            $DB->insert_record('tool_activitydates_lockitem', (object) [
+                'lockid' => $lockid,
+                'cmid' => $quiz->cmid,
+                'shownote' => $shownote,
+                'shownotecoursepage' => $coursepage,
+            ]);
+        }
+        foreach ([[$quiz1, 'timeclose'], [$quiz2, 'timelock']] as [$quiz, $field]) {
+            $DB->insert_record('tool_activitydates_fixed', (object) [
+                'courseid' => $course->id,
+                'cmid' => $quiz->cmid,
+                'field' => $field,
+            ]);
+        }
+        $hasdue = activitydates::has_duedate('quiz');
+        $snapshot = function () use ($DB, $course, $lockid, $hasdue): array {
+            $datefields = 'id, timeopen, timeclose' . ($hasdue ? ', duedate' : '');
+            $quizzes = $DB->get_records('quiz', ['course' => $course->id], 'id', $datefields);
+            $locks = [];
+            foreach (activitydates::get_modules((object) ['courseid' => $course->id, 'modtype' => 'quiz']) as $cm) {
+                $locks[$cm->id] = (new locks\manager())->current_locktime((int) $course->id, $cm);
+            }
+            return [
+                'quizzes' => $quizzes,
+                'locks' => $locks,
+                'visible' => $DB->get_records_menu('course_modules', ['course' => $course->id], 'id', 'id, visible'),
+                'notes' => $DB->get_records(
+                    'tool_activitydates_lockitem',
+                    ['lockid' => $lockid],
+                    'cmid',
+                    'cmid, shownote, shownotecoursepage'
+                ),
+                'fixed' => $this->flags($course->id),
+                'selection' => $DB->get_fieldset_sql(
+                    'SELECT coursemoduleid FROM {tool_activitydates_cmids} ORDER BY coursemoduleid'
+                ),
+                'lock' => $DB->get_record(
+                    'tool_activitydates_lock',
+                    ['id' => $lockid],
+                    'lockmode, lockdays, lockdate, resetunselected'
+                ),
+            ];
+        };
+        $before = $snapshot();
+
+        // The page load: the table and the POST it makes.
+        $tz = \core_date::get_user_timezone_object();
+        $settings = activitydates::load_settings($course->id, 'quiz');
+        $validcmids = array_map('intval', array_keys(activitydates::get_modules($settings)));
+        $selected = activitydates::saved_selection((int) $settings->id, $validcmids);
+        $tabledata = $manager->get_table_data($settings, $selected);
+        $rows = array_values(array_filter($tabledata, fn($row) => !$row['isheader']));
+        $this->assertSame([
+            'timeopen' => strtotime('2029-03-01 09:00'),
+            'duedate' => $hasdue ? 0 : null,
+            'timeclose' => strtotime('2029-03-09 18:30'),
+            'timelock' => strtotime('2029-05-01 12:00'),
+        ], $rows[0]['current']);
+        $this->assertSame(
+            ['timeopen' => 0, 'duedate' => $hasdue ? 0 : null, 'timeclose' => 0, 'timelock' => 0],
+            $rows[2]['current']
+        );
+        $this->assertSame('', local\datefields::to_input($rows[2]['current']['timeclose'], $tz));
+        $inputs = [];
+        $fixposted = [];
+        $allowed = [];
+        foreach ($rows as $row) {
+            $cmid = (int) $row['id'];
+            $allowed[$cmid] = true;
+            foreach ($row['current'] as $field => $value) {
+                $inputs[$field][$cmid] = local\datefields::to_input((int) $value, $tz);
+                if ($row['fixed'][$field]) {
+                    $fixposted[$field][$cmid] = 1;
+                }
+            }
+        }
+        [$values, $errors] = local\datefields::validate_dates($inputs, $allowed, $hasdue, true, $tz);
+        $this->assertSame([], $errors);
+        $notes = array_map(fn($row) => (int) $row['id'], array_filter($rows, fn($row) => $row['shownote']));
+        $coursenotes = array_map(fn($row) => (int) $row['id'], array_filter($rows, fn($row) => $row['shownotecoursepage']));
+        $fromform = (object) (['activitygroup' => $this->ticks([$quiz1, $quiz2, $quiz3])] + (array) $settings);
+
+        $result = $manager->save($fromform, $course->id, $tabledata, $values, $notes, $coursenotes, $fixposted, true, true, true);
+
+        $this->assertSame(['dates' => 3, 'locks' => 3], $result);
+        $this->assertEquals($before, $snapshot());
+    }
+
+    /**
+     * Each row carries its own activity-page and course-page note, saved per row;
+     * rows without a saved item show the site defaults.
+     */
+    public function test_note_flags_per_row(): void {
+        global $DB;
+        $this->resetAfterTest();
+        set_config('lockshownote', 0, 'tool_activitydates');
+        set_config('lockshownotecoursepage', 1, 'tool_activitydates');
+        [$course, [$quiz1, $quiz2, $quiz3]] = $this->graded_quizzes(3);
+        $manager = new activitydates();
+        $fromform = $this->fromform(['lockmode' => 'none', 'activitygroup' => $this->ticks([$quiz1, $quiz2, $quiz3])]);
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $all = [$quiz1->cmid, $quiz2->cmid, $quiz3->cmid];
+        $datarows = fn() => array_values(array_filter($manager->get_table_data($settings, $all), fn($row) => !$row['isheader']));
+
+        // Nothing saved: the site defaults.
+        $rows = $datarows();
+        $this->assertSame([false, false, false], array_column($rows, 'shownote'));
+        $this->assertSame([true, true, true], array_column($rows, 'shownotecoursepage'));
+
+        $tabledata = $manager->get_table_data($settings, $all);
+        $manager->save(
+            $fromform,
+            $course->id,
+            $tabledata,
+            $this->proposed_values($tabledata),
+            [$quiz1->cmid, $quiz2->cmid],
+            [$quiz2->cmid, $quiz3->cmid],
+            [],
+            true,
+            true,
+            true
+        );
+
+        $items = $DB->get_records('tool_activitydates_lockitem', null, 'cmid', 'cmid, shownote, shownotecoursepage');
+        $this->assertEquals([
+            $quiz1->cmid => (object) ['cmid' => $quiz1->cmid, 'shownote' => 1, 'shownotecoursepage' => 0],
+            $quiz2->cmid => (object) ['cmid' => $quiz2->cmid, 'shownote' => 1, 'shownotecoursepage' => 1],
+            $quiz3->cmid => (object) ['cmid' => $quiz3->cmid, 'shownote' => 0, 'shownotecoursepage' => 1],
+        ], $items);
+        $rows = $datarows();
+        $this->assertSame([true, true, false], array_column($rows, 'shownote'));
+        $this->assertSame([false, true, true], array_column($rows, 'shownotecoursepage'));
+        // The course page shows only the note of an item with both ticks.
+        $this->assertTrue(locks\local\locknote::shows_note((int) $quiz1->cmid, false));
+        $this->assertFalse(locks\local\locknote::shows_note((int) $quiz1->cmid, true));
+        $this->assertTrue(locks\local\locknote::shows_note((int) $quiz2->cmid, true));
+        $this->assertFalse(locks\local\locknote::shows_note((int) $quiz3->cmid, true));
     }
 }
