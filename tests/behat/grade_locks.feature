@@ -178,7 +178,7 @@ Feature: Bulk-schedule gradebook lock dates
     And the grade lock date of "quiz1" should be "2030-02-01T12:15"
 
   @javascript
-  Scenario: An empty lock date blocks Save
+  Scenario: An empty lock date clears the lock
     Given I log in as "teacher1"
     And I am on the "C1" "tool_activitydates > locks" page
     And I set the field "schedulestart[day]" to "1"
@@ -186,12 +186,13 @@ Feature: Bulk-schedule gradebook lock dates
     And I set the field "schedulestart[year]" to "2030"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
     And I press "Preview"
-    When I set the "locktime" date of "Quiz1" to ""
-    Then I should see "Enter a lock date." in the "Quiz1" "table_row"
+    And I set the "locktime" date of "Quiz1" to "2030-02-01T12:15"
     And I press "Save and display"
-    Then I should see "Nothing was saved: 1 date(s) need correcting"
-    And I should see "Enter a lock date." in the "Quiz1" "table_row"
-    And the "locktime" date input of "Quiz1" should be ""
+    And the grade lock date of "quiz1" should be "2030-02-01T12:15"
+    When I set the "locktime" date of "Quiz1" to ""
+    And I press "Save and display"
+    Then I should see "Updated the gradebook lock date for 1 activities."
+    And I should not see "Nothing was saved"
     And the grade lock date of "quiz1" should be "0"
 
   @javascript

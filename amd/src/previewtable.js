@@ -34,11 +34,9 @@ import Notification from 'core/notification';
 
 /** @var {string[]} The error string keys the hints use. */
 const ERRORKEYS = [
-    'erroropenrequired',
     'errorclosebeforeopen',
     'errorduebeforeopen',
     'errordueafterclose',
-    'errorlockrequired',
 ];
 
 /** @var {string[]} The ids of the Save buttons disabled while the table is stale. */
@@ -207,7 +205,8 @@ export const init = (formid, watchednames) => {
      * Check one row with the same rules as the server (datefields).
      *
      * Values are datetime-local strings in the user's timezone, so they order
-     * lexicographically. An incomplete browser value reads as empty.
+     * lexicographically. An incomplete browser value reads as empty. Every
+     * date is optional: the ordering rules apply only between set values.
      *
      * @param {string} cmid the course module id.
      * @return {Object} field => error string key, or null when valid, for each field the row has.
@@ -220,7 +219,7 @@ export const init = (formid, watchednames) => {
 
         const lock = value('locktime');
         if (lock !== null) {
-            return {locktime: lock === '' ? 'errorlockrequired' : null};
+            return {locktime: null};
         }
 
         const open = value('timeopen');
@@ -228,7 +227,7 @@ export const init = (formid, watchednames) => {
         const due = value('duedate');
         const errors = {};
         if (open !== null) {
-            errors.timeopen = open === '' ? 'erroropenrequired' : null;
+            errors.timeopen = null;
         }
         if (close !== null) {
             errors.timeclose = close && open && close <= open ? 'errorclosebeforeopen' : null;

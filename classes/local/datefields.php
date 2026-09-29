@@ -95,7 +95,9 @@ final class datefields {
      * @param bool $hasdue whether the type has a duedate column.
      * @param \DateTimeZone $tz the user's timezone.
      * @return array [values, errors]: values[cmid] = ['timeopen' => int, 'duedate' => ?int, 'timeclose' => int];
-     *   errors[cmid][field] = lang string key. Cms not in $allowed are ignored.
+     *   errors[cmid][field] = lang string key. Cms not in $allowed are ignored. Every date is optional:
+     *   an empty or missing value is 0 (not set), and the ordering rules (close after open; due after
+     *   open and not after close) apply only between dates that are set.
      */
     public static function validate_dates(array $inputs, array $allowed, bool $hasdue, \DateTimeZone $tz): array {
         $values = [];
@@ -107,8 +109,6 @@ final class datefields {
             $open = self::read($inputs, 'timeopen', $cmid, $tz);
             if ($open === null) {
                 $rowerrors['timeopen'] = 'errorinvaliddate';
-            } else if ($open === 0) {
-                $rowerrors['timeopen'] = 'erroropenrequired';
             }
 
             $close = self::read($inputs, 'timeclose', $cmid, $tz);
@@ -146,7 +146,8 @@ final class datefields {
      * @param array $allowed cmid => true: selected cms of this course and type.
      * @param \DateTimeZone $tz the user's timezone.
      * @return array [values, errors]: values[cmid] = ['locktime' => int]; errors[cmid]['locktime'] = lang string key.
-     *   Cms not in $allowed are ignored. A date in the past is allowed.
+     *   Cms not in $allowed are ignored. A date in the past is allowed. An empty or missing value is 0,
+     *   which clears the lock.
      */
     public static function validate_locks(array $inputs, array $allowed, \DateTimeZone $tz): array {
         $values = [];
@@ -156,8 +157,6 @@ final class datefields {
             $lock = self::read($inputs, 'locktime', $cmid, $tz);
             if ($lock === null) {
                 $errors[$cmid] = ['locktime' => 'errorinvaliddate'];
-            } else if ($lock === 0) {
-                $errors[$cmid] = ['locktime' => 'errorlockrequired'];
             } else {
                 $values[$cmid] = ['locktime' => $lock];
             }
