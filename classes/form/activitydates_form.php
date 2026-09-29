@@ -79,7 +79,7 @@ class activitydates_form extends \moodleform {
         // and the table for the chosen type and settings without saving anything.
         $group = [];
         $group[] = $mform->createElement('select', 'modtype', get_string('activitytype', 'tool_activitydates'), $modules);
-        $group[] = $mform->createElement('submit', 'preview', get_string('preview', 'tool_activitydates'));
+        $group[] = $mform->createElement('submit', 'preview', get_string('preview'));
         $mform->addGroup($group, 'modtypegroup', get_string('activitytype', 'tool_activitydates'), [' '], false);
         $mform->setDefault('modtype', $modtype);
 

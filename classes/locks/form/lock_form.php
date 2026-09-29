@@ -78,7 +78,7 @@ class lock_form extends \moodleform {
         // presses it when the type changes.
         $group = [];
         $group[] = $mform->createElement('select', 'modtype', get_string('activitytype', 'tool_activitydates'), $modules);
-        $group[] = $mform->createElement('submit', 'preview', get_string('preview', 'tool_activitydates'));
+        $group[] = $mform->createElement('submit', 'preview', get_string('preview'));
         $mform->addGroup($group, 'modtypegroup', get_string('activitytype', 'tool_activitydates'), [' '], false);
         $mform->setDefault('modtype', $modtype);
 
