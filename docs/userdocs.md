@@ -243,7 +243,7 @@ The tool stores only **course-level scheduling configuration** — the chosen ac
 - `tool_activitydates_lockitem` — the course-module IDs selected for grade locks, each with its activity-page and course-page note switches.
 - `tool_activitydates_fixed` — the held dates: one row per course module and held field (`timeopen`, `duedate`, `timeclose` or `timelock`). It stores only the flag; the date itself stays in the activity or the gradebook.
 
-Deleting a course deletes its rows from all five tables.
+Deleting a course deletes its rows from all five tables. Deleting an activity deletes its rows from `tool_activitydates_cmids`, `tool_activitydates_lockitem` and `tool_activitydates_fixed`.
 
 ## License
 

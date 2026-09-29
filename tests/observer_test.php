@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the course-deletion observer.
+ * Tests for the course and course module deletion observers.
  *
  * @package    tool_activitydates
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -60,5 +60,43 @@ final class observer_test extends \advanced_testcase {
         }
         $this->assertSame(1, $DB->count_records('tool_activitydates_cmids'));
         $this->assertSame(1, $DB->count_records('tool_activitydates_lockitem'));
+    }
+
+    public function test_course_module_deleted_clears_its_rows(): void {
+        global $DB;
+        $this->resetAfterTest();
+        // Delete the module now, not after a recycle bin backup.
+        set_config('coursebinenable', 0, 'tool_recyclebin');
+        $gen = $this->getDataGenerator();
+        $course = $gen->create_course();
+        $doomed = $gen->create_module('quiz', ['course' => $course->id]);
+        $kept = $gen->create_module('quiz', ['course' => $course->id]);
+
+        $datesid = $DB->insert_record('tool_activitydates', (object) ['courseid' => $course->id, 'modtype' => 'quiz']);
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $course->id]);
+        foreach ([$doomed->cmid, $kept->cmid] as $cmid) {
+            $DB->insert_record('tool_activitydates_cmids', (object) ['activitydates' => $datesid, 'coursemoduleid' => $cmid]);
+            $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cmid, 'shownote' => 1]);
+            $DB->insert_record(
+                'tool_activitydates_fixed',
+                (object) ['courseid' => $course->id, 'cmid' => $cmid, 'field' => 'timeopen', 'timemodified' => 1]
+            );
+        }
+
+        // Moodle 5.2 moved the deletion into the course format actions.
+        $cmactions = new \core_courseformat\local\cmactions($course);
+        if (method_exists($cmactions, 'delete')) {
+            $cmactions->delete($doomed->cmid);
+        } else {
+            course_delete_module($doomed->cmid);
+        }
+
+        $left = fn(string $table, string $field): array => array_map('intval', $DB->get_fieldset($table, $field));
+        $this->assertSame([(int) $kept->cmid], $left('tool_activitydates_cmids', 'coursemoduleid'));
+        $this->assertSame([(int) $kept->cmid], $left('tool_activitydates_lockitem', 'cmid'));
+        $this->assertSame([(int) $kept->cmid], $left('tool_activitydates_fixed', 'cmid'));
+        // The course's configuration stays.
+        $this->assertTrue($DB->record_exists('tool_activitydates', ['id' => $datesid]));
+        $this->assertTrue($DB->record_exists('tool_activitydates_lock', ['id' => $lockid]));
     }
 }

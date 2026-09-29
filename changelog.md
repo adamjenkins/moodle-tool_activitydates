@@ -31,7 +31,7 @@ All notable changes to `tool_activitydates` are documented in this file.
   Preview, even when the settings change, and "after a number of days" counts
   from a held open date. The flags are stored per activity and field in the
   new table `tool_activitydates_fixed` (`:manage` for open, due and close,
-  `:managelocks` for the lock date) and deleted with the course.
+  `:managelocks` for the lock date) and deleted with the activity or the course.
 - A **Grade-lock note** column with per-activity **Activity page** and **Course
   page** checkboxes, each with a select-all, stored in the new
   `tool_activitydates_lockitem.shownotecoursepage` field.
@@ -99,6 +99,10 @@ All notable changes to `tool_activitydates` are documented in this file.
 
 ### Fixed
 
+- Deleting an activity deletes its rows in `tool_activitydates_cmids`,
+  `tool_activitydates_lockitem` and `tool_activitydates_fixed` (a
+  `course_module_deleted` observer); before, they stayed until the course was
+  deleted.
 - On Moodle 5.3, the quiz's due date is written together with its open and
   close dates and kept between them, and "Reset unselected" clears it
   (MDL-82521 made `quiz.duedate` a column the tool left stale).

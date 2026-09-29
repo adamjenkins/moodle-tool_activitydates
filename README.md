@@ -37,7 +37,7 @@ Site administration → Plugins → Admin tools → Activity dates provides site
 
 ## Privacy
 
-This plugin stores only course-level configuration (which activity type, session settings, which activities are selected for both dates and grade locks, their note settings, and which of their dates are held) — it does not store or process any personal user data, and implements Moodle's privacy `null_provider`. Deleting a course deletes its configuration.
+This plugin stores only course-level configuration (which activity type, session settings, which activities are selected for both dates and grade locks, their note settings, and which of their dates are held) — it does not store or process any personal user data, and implements Moodle's privacy `null_provider`. Deleting a course deletes its configuration; deleting an activity deletes its selections, notes and held dates.
 
 ## Acknowledgements
 

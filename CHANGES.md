@@ -72,6 +72,8 @@ optional finish date and an editable preview table.
   daylight-saving change repeats is saved as the table showed it.
 - Changed: a lock date saved unchanged is not rewritten, so an activity whose
   grade items have different lock dates keeps them.
+- Fixed: deleting an activity now deletes its selections, notes and held dates;
+  before, they stayed until the course was deleted.
 - Changed: for quizzes, the table's **Question count** column is replaced by
   **Marks**, the quiz's maximum grade.
 

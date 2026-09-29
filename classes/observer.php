@@ -54,4 +54,29 @@ class observer {
         $DB->delete_records('tool_activitydates_lock', $params);
         $DB->delete_records('tool_activitydates_fixed', $params);
     }
+
+    /**
+     * Clean up this plugin's rows for a course module when it is deleted.
+     *
+     * Its dates selection, grade-lock selection (with its notes) and fixed-date
+     * flags would otherwise stay until the course is deleted. Each delete is
+     * scoped to the module's course, so it uses that course's indexes.
+     *
+     * @param \core\event\course_module_deleted $event The course_module_deleted event.
+     */
+    public static function course_module_deleted(\core\event\course_module_deleted $event): void {
+        global $DB;
+        $params = ['courseid' => $event->courseid, 'cmid' => $event->objectid];
+        $DB->delete_records_select(
+            'tool_activitydates_cmids',
+            'coursemoduleid = :cmid AND activitydates IN (SELECT id FROM {tool_activitydates} WHERE courseid = :courseid)',
+            $params
+        );
+        $DB->delete_records_select(
+            'tool_activitydates_lockitem',
+            'cmid = :cmid AND lockid IN (SELECT id FROM {tool_activitydates_lock} WHERE courseid = :courseid)',
+            $params
+        );
+        $DB->delete_records('tool_activitydates_fixed', $params);
+    }
 }
