@@ -42,22 +42,13 @@ class activitydates {
     public function update(\stdClass $fromform, int $courseid): array {
         global $DB;
         $existing = $DB->get_record('tool_activitydates', ['courseid' => $courseid]);
-        $data = (object) [
-            'courseid' => $courseid,
-            'modtype' => $fromform->modtype,
-            'schedulestart' => $fromform->schedulestart,
-            'schedulefinish' => $fromform->schedulefinish,
-            'sessionlength' => $fromform->sessionlength,
-            'activitiespersession' => $fromform->activitiespersession,
-            'stayavailable' => (int) !empty($fromform->stayavailable),
-            'hideunselected' => (int) !empty($fromform->hideunselected),
-            'resetunselected' => (int) !empty($fromform->resetunselected),
-            'timemodified' => time(),
-        ];
+        // Persist exactly what a preview of the same submission computes.
+        $data = self::settings_from_form($fromform, $courseid, $existing ? (int) $existing->id : 0);
+        $data->timemodified = time();
         if ($existing) {
-            $data->id = $existing->id;
             $DB->update_record('tool_activitydates', $data);
         } else {
+            unset($data->id);
             $data->id = $DB->insert_record('tool_activitydates', $data);
         }
         // Call once only: driprelease's bug is calling this twice, which is harmless
@@ -70,6 +61,90 @@ class activitydates {
             'coursemoduleid'
         ));
         return [$selections, $data];
+    }
+
+    /**
+     * Build the settings object from submitted form data, without persisting it.
+     *
+     * The optional finish-date selector submits 0 when disabled, which disables the
+     * cap. Unknown modes fall back to the defaults, and absent due fields (types
+     * without a duedate column) get the defaults.
+     *
+     * @param \stdClass $fromform submitted form data.
+     * @param int $courseid the course ID.
+     * @param int $id the tool_activitydates row ID, 0 if none yet.
+     * @return \stdClass settings object (tool_activitydates row shape).
+     */
+    public static function settings_from_form(\stdClass $fromform, int $courseid, int $id): \stdClass {
+        $mode = fn($value, string $default): string =>
+            in_array((string) $value, local\schedule::MODES, true) ? (string) $value : $default;
+        return (object) [
+            'id' => $id,
+            'courseid' => $courseid,
+            'modtype' => (string) ($fromform->modtype ?? ''),
+            'schedulestart' => (int) ($fromform->schedulestart ?? 0),
+            'finishenabled' => (int) !empty($fromform->schedulefinish),
+            'schedulefinish' => (int) ($fromform->schedulefinish ?? 0),
+            'sessionlength' => (int) ($fromform->sessionlength ?? 0),
+            'activitiespersession' => (int) ($fromform->activitiespersession ?? 0),
+            'closemode' => $mode($fromform->closemode ?? '', local\schedule::MODE_SESSION),
+            'closedays' => (int) ($fromform->closedays ?? 7),
+            'closedate' => (int) ($fromform->closedate ?? 0),
+            'duemode' => $mode($fromform->duemode ?? '', local\schedule::MODE_NONE),
+            'duedays' => (int) ($fromform->duedays ?? 7),
+            'duedate' => (int) ($fromform->duedate ?? 0),
+            'hideunselected' => (int) !empty($fromform->hideunselected),
+            'resetunselected' => (int) !empty($fromform->resetunselected),
+        ];
+    }
+
+    /**
+     * The cmids ticked in the form's activitygroup checkboxes, restricted to the
+     * valid cmids (the course's cms of the configured type).
+     *
+     * @param \stdClass $fromform submitted form data with an activitygroup array.
+     * @param array $validcmids the cmids that may be selected.
+     * @return int[] selected cmids, in $validcmids order.
+     */
+    public static function selected_from_form(\stdClass $fromform, array $validcmids): array {
+        $checked = self::checked_cmids($fromform);
+        $selected = [];
+        foreach ($validcmids as $cmid) {
+            if (isset($checked[(int) $cmid])) {
+                $selected[] = (int) $cmid;
+            }
+        }
+        return $selected;
+    }
+
+    /**
+     * Parse the ticked activitygroup[activity_<cmid>] checkboxes.
+     *
+     * @param \stdClass $fromform submitted form data with an activitygroup array.
+     * @return array cmid => true.
+     */
+    private static function checked_cmids(\stdClass $fromform): array {
+        $checked = [];
+        foreach ((array) ($fromform->activitygroup ?? []) as $key => $value) {
+            if (empty($value)) {
+                continue;
+            }
+            if (preg_match('/^activity_(\d+)$/', $key, $matches)) {
+                $checked[(int) $matches[1]] = true;
+            }
+        }
+        return $checked;
+    }
+
+    /**
+     * Whether a module type has a duedate column (quiz from Moodle 5.3).
+     *
+     * @param string $modtype the module name, which is also its table name.
+     * @return bool
+     */
+    public static function has_duedate(string $modtype): bool {
+        global $DB;
+        return isset($DB->get_columns($modtype)['duedate']);
     }
 
     /**
@@ -88,15 +163,7 @@ class activitydates {
             '',
             'coursemoduleid, id'
         );
-        $checked = [];
-        foreach ((array) ($fromform->activitygroup ?? []) as $key => $value) {
-            if (empty($value)) {
-                continue;
-            }
-            if (preg_match('/^activity_(\d+)$/', $key, $matches)) {
-                $checked[(int) $matches[1]] = true;
-            }
-        }
+        $checked = self::checked_cmids($fromform);
         foreach ($checked as $cmid => $unused) {
             if (!array_key_exists($cmid, $existing)) {
                 $DB->insert_record(
@@ -117,53 +184,40 @@ class activitydates {
      * Build the table data for rendering/applying: one header row per
      * session chunk followed by one data row per course module in it.
      *
-     * Two-pass design: pass 1 computes every chunk's window (or null if the
-     * chunk has no selected cm) before pass 2 emits rows, so the window
-     * index only advances for chunks that actually contain a selection.
-     * This fixes tool_driprelease's single-pass quirk, where a header row
-     * reused the *previous* data row's `selected` flag, so a session whose
-     * first activity happened to be unselected inherited a stale window.
+     * The windows and proposed dates come from local\schedule, in the user's
+     * timezone. A chunk's window is null when it has no selected cm (the window
+     * index only advances for chunks with a selection) or, with the finish date
+     * enabled, when it would start after the finish date.
      *
-     * @param \stdClass $settings the course's activitydates config record.
-     * @return array list of header/data rows, see class docblock for shape.
+     * Data rows carry the current dates and, beside them:
+     * - scheduled: whether the cm is selected and in a window;
+     * - proposed: the engine's ['timeopen', 'duedate', 'timeclose'], or null;
+     * - status: '' for scheduled rows, else the lang key of what Save does to
+     *   the row (rowstatus_reset wins over rowstatus_hidden: a reset is not
+     *   undone by showing the activity again);
+     * - duedate: the current due date, null when the type has no duedate column.
+     *
+     * @param \stdClass $settings settings object (tool_activitydates row shape).
+     * @param array $selectedcmids the selected cmids.
+     * @return array list of header/data rows.
      */
-    public function get_table_data(\stdClass $settings): array {
+    public function get_table_data(\stdClass $settings, array $selectedcmids): array {
         global $DB;
         $modules = self::get_modules($settings);
-        $chunksize = max(1, (int) $settings->activitiespersession);
-        $chunks = array_chunk($modules, $chunksize, true);
-
-        $selectedcmids = $DB->get_records_menu(
-            'tool_activitydates_cmids',
-            ['activitydates' => $settings->id],
-            '',
-            'coursemoduleid, coursemoduleid'
+        $cmids = array_map('intval', array_keys($modules));
+        $selected = array_fill_keys(array_map('intval', $selectedcmids), true);
+        $hasdue = self::has_duedate($settings->modtype);
+        $computed = local\schedule::compute(
+            $settings,
+            $cmids,
+            $selected,
+            $hasdue,
+            \core_date::get_user_timezone_object()
         );
-
-        // Pass 1: compute each chunk's window without emitting any rows yet.
-        $windowindex = 0;
-        $windows = [];
-        foreach ($chunks as $chunkkey => $chunk) {
-            $haschecked = false;
-            foreach ($chunk as $cm) {
-                if (array_key_exists($cm->id, $selectedcmids)) {
-                    $haschecked = true;
-                    break;
-                }
-            }
-            if ($haschecked) {
-                $window = $this->calculate_dates($settings, $windowindex);
-                $windowindex++;
-                // Never preview a window apply_dates() would then skip: it never
-                // schedules anything to open after the end of the schedule.
-                $windows[$chunkkey] = $window['start'] > $settings->schedulefinish ? null : $window;
-            } else {
-                $windows[$chunkkey] = null;
-            }
-        }
 
         // Add display strings so the template needs no date logic of its own.
         $dateformat = get_string('dateformat', 'tool_activitydates');
+        $windows = $computed['windows'];
         foreach ($windows as $chunkkey => $window) {
             if ($window === null) {
                 continue;
@@ -174,35 +228,51 @@ class activitydates {
             $windows[$chunkkey]['endattr'] = userdate($window['end'], self::DATETIMEATTRFORMAT, 99, false, false);
         }
 
-        // Pass 2: emit header + data rows using the precomputed windows.
+        $fields = 'id, timeopen, timeclose, intro' . ($hasdue ? ', duedate' : '');
+        $chunksize = max(1, (int) $settings->activitiespersession);
         $rows = [];
-        foreach ($chunks as $chunkkey => $chunk) {
+        foreach (array_chunk($modules, $chunksize, true) as $chunkkey => $chunk) {
             $window = $windows[$chunkkey];
             $rows[] = ['isheader' => true, 'dates' => $window];
             foreach ($chunk as $cm) {
-                $instance = $DB->get_record(
-                    $settings->modtype,
-                    ['id' => $cm->instance],
-                    'id, timeopen, timeclose, intro'
-                );
+                $instance = $DB->get_record($settings->modtype, ['id' => $cm->instance], $fields);
                 $questioncount = null;
                 if ($settings->modtype === 'quiz') {
                     $questioncount = $DB->count_records('quiz_slots', ['quizid' => $cm->instance]);
                 }
+                $isselected = isset($selected[(int) $cm->id]);
+                $proposed = $computed['dates'][(int) $cm->id] ?? null;
+                if ($proposed !== null) {
+                    $status = '';
+                } else if (!$isselected && !empty($settings->resetunselected)) {
+                    $status = 'rowstatus_reset';
+                } else if (!$isselected && !empty($settings->hideunselected)) {
+                    $status = 'rowstatus_hidden';
+                } else {
+                    $status = 'rowstatus_notscheduled';
+                }
+                $duedate = $hasdue ? (int) ($instance->duedate ?? 0) : null;
                 $rows[] = [
                     'isheader' => false,
                     'cm' => $cm,
                     'id' => $cm->id,
                     'name' => $cm->name,
                     'intro' => strip_tags($instance->intro ?? ''),
-                    'selected' => array_key_exists($cm->id, $selectedcmids) ? 'checked' : '',
+                    'selected' => $isselected ? 'checked' : '',
                     'questioncount' => $questioncount,
                     'dates' => $window,
+                    'scheduled' => $proposed !== null,
+                    'proposed' => $proposed,
+                    'status' => $status,
                     'timeopen' => $instance->timeopen ?? 0,
                     'timeopenformatted' => empty($instance->timeopen)
                         ? '' : userdate($instance->timeopen, $dateformat),
                     'timeopenattr' => empty($instance->timeopen)
                         ? '' : userdate($instance->timeopen, self::DATETIMEATTRFORMAT, 99, false, false),
+                    'duedate' => $duedate,
+                    'duedateformatted' => empty($duedate) ? '' : userdate($duedate, $dateformat),
+                    'duedateattr' => empty($duedate)
+                        ? '' : userdate($duedate, self::DATETIMEATTRFORMAT, 99, false, false),
                     'timeclose' => $instance->timeclose ?? 0,
                     'timecloseformatted' => empty($instance->timeclose)
                         ? '' : userdate($instance->timeclose, $dateformat),
@@ -212,31 +282,6 @@ class activitydates {
             }
         }
         return $rows;
-    }
-
-    /**
-     * Calculate the open/close window for a given session index.
-     *
-     * Session-window date math ported from tool_driprelease's
-     * calculate_availability() by Marcus Green
-     * (https://github.com/marcusgreen/moodle-tool_driprelease, GPL-3.0-or-later).
-     *
-     * @param \stdClass $settings the course's activitydates config record.
-     * @param int $sessionindex zero-based session index.
-     * @return array ['sessionnumber' => int, 'start' => int, 'end' => int]
-     */
-    public function calculate_dates(\stdClass $settings, int $sessionindex): array {
-        $start = strtotime('+' . ($sessionindex * $settings->sessionlength) . ' day', $settings->schedulestart);
-        $endday = strtotime(
-            '+' . ((($sessionindex * $settings->sessionlength) - 1) + $settings->sessionlength) . ' day',
-            $settings->schedulestart
-        );
-        $end = strtotime(date('Y-m-d', $endday) . ' ' . date('H:i:s', $settings->schedulefinish));
-        return [
-            'sessionnumber' => $sessionindex + 1,
-            'start' => $start,
-            'end' => $end,
-        ];
     }
 
     /**
@@ -259,14 +304,21 @@ class activitydates {
     }
 
     /**
-     * Write timeopen/timeclose for every selected, in-window row and
-     * refresh each activity's calendar events.
+     * Write the table's dates for every selected, scheduled row that has a
+     * validated value, and refresh each activity's calendar events. Unselected
+     * rows get the hide/reset treatment.
+     *
+     * Values are only ever written to rows of this table that are selected and
+     * scheduled: a posted value for any other cm (unselected, past the finish
+     * cap, or another course's) is ignored.
      *
      * @param array $tabledata rows from get_table_data().
-     * @param \stdClass $settings the course's activitydates config record.
+     * @param \stdClass $settings settings object (tool_activitydates row shape).
+     * @param array $values datefields::validate_dates()'s values: cmid =>
+     *     ['timeopen' => int, 'duedate' => ?int, 'timeclose' => int].
      * @return int the number of activities updated.
      */
-    public function apply_dates(array $tabledata, \stdClass $settings): int {
+    public function apply_dates(array $tabledata, \stdClass $settings, array $values): int {
         global $CFG, $DB;
         require_once($CFG->dirroot . '/course/lib.php');
 
@@ -281,19 +333,21 @@ class activitydates {
                 $this->process_unselected($row, $settings);
                 continue;
             }
-            if (empty($row['dates'])) {
+            // Never write a row that is not scheduled (e.g. past the finish date), or
+            // one without a validated value.
+            if (!$row['scheduled'] || !isset($values[(int) $row['id']])) {
                 continue;
             }
-            // Never schedule anything to open after the end of the schedule.
-            if ($row['dates']['start'] > $settings->schedulefinish) {
-                continue;
-            }
+            $value = $values[(int) $row['id']];
             $cm = $row['cm'];
             $instance = (object) [
                 'id' => $cm->instance,
-                'timeopen' => $row['dates']['start'],
-                'timeclose' => empty($settings->stayavailable) ? $row['dates']['end'] : 0,
+                'timeopen' => (int) $value['timeopen'],
+                'timeclose' => (int) $value['timeclose'],
             ];
+            if (isset($columns['duedate'])) {
+                $instance->duedate = (int) ($value['duedate'] ?? 0);
+            }
             if (isset($columns['timemodified'])) {
                 $instance->timemodified = time();
             }
@@ -319,7 +373,7 @@ class activitydates {
      * resetunselected.
      *
      * @param array $row a get_table_data() data row.
-     * @param \stdClass $settings the course's activitydates config record.
+     * @param \stdClass $settings settings object (tool_activitydates row shape).
      */
     public function process_unselected(array $row, \stdClass $settings): void {
         global $CFG, $DB;
@@ -333,10 +387,12 @@ class activitydates {
             set_coursemodule_visible($cm->id, true, true);
         }
         if (!empty($settings->resetunselected)) {
-            $DB->update_record($settings->modtype, (object) [
-                'id' => $cm->instance, 'timeopen' => 0, 'timeclose' => 0,
-            ]);
-            // With both times zero the callback deletes the calendar events.
+            $reset = (object) ['id' => $cm->instance, 'timeopen' => 0, 'timeclose' => 0];
+            if (self::has_duedate($settings->modtype)) {
+                $reset->duedate = 0;
+            }
+            $DB->update_record($settings->modtype, $reset);
+            // With all times zero the callback deletes the calendar events.
             component_callback(
                 'mod_' . $settings->modtype,
                 'refresh_events',
