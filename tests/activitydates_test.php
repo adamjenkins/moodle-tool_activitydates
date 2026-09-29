@@ -841,4 +841,49 @@ final class activitydates_test extends \advanced_testcase {
         $this->assertSame([10, 30], $manager->selected_from_form($fromform, [10, 20, 30, 40]));
         $this->assertSame([], $manager->selected_from_form((object) [], [10, 20]));
     }
+
+    public function test_saved_selection_drops_invalid_cmids(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $quiz1 = $generator->create_module('quiz', ['course' => $course->id]);
+        $quiz2 = $generator->create_module('quiz', ['course' => $course->id]);
+        $quiz3 = $generator->create_module('quiz', ['course' => $course->id]);
+        $assign = $generator->create_module('assign', ['course' => $course->id]);
+
+        $manager = new activitydates();
+        [, $settings] = $manager->update($this->fromform(['activitygroup' => [
+            'activity_' . $quiz1->cmid => 1,
+            'activity_' . $quiz2->cmid => 1,
+            'activity_' . $quiz3->cmid => 1,
+        ]]), $course->id);
+        // Leftover rows no longer valid for the displayed type: a cm that no
+        // longer exists, and a cm of another type.
+        foreach ([999999, (int) $assign->cmid] as $cmid) {
+            $DB->insert_record('tool_activitydates_cmids', (object) [
+                'activitydates' => $settings->id,
+                'coursemoduleid' => $cmid,
+            ]);
+        }
+        // A cm being deleted (recycle bin) is not valid either.
+        $DB->set_field('course_modules', 'deletioninprogress', 1, ['id' => $quiz2->cmid]);
+        \rebuild_course_cache($course->id, true);
+
+        $validcmids = array_keys(activitydates::get_modules($settings));
+        $saved = activitydates::saved_selection((int) $settings->id, $validcmids);
+        $this->assertSame([(int) $quiz1->cmid, (int) $quiz3->cmid], $saved);
+
+        // Saving the page straight after load posts the same ticks back, so the
+        // GET selection must fingerprint the same as the POST selection.
+        $fromform = $this->fromform(['activitygroup' => array_fill_keys(
+            array_map(fn($cmid) => 'activity_' . $cmid, $saved),
+            1
+        )]);
+        $this->assertSame(
+            local\fingerprint::dates($settings, $saved, false),
+            local\fingerprint::dates($settings, activitydates::selected_from_form($fromform, $validcmids), false)
+        );
+        $this->assertSame([], activitydates::saved_selection(0, $validcmids));
+    }
 }

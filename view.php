@@ -168,12 +168,7 @@ if ($fromform = $mform->get_data()) {
     // saved settings' table until the settings are corrected.
     $selected = activitydates::selected_from_form($submitted, $validcmids);
 } else {
-    $selected = array_map('intval', array_keys($DB->get_records_menu(
-        'tool_activitydates_cmids',
-        ['activitydates' => $settings->id],
-        '',
-        'coursemoduleid, coursemoduleid'
-    )));
+    $selected = activitydates::saved_selection((int) $settings->id, $validcmids);
 }
 
 $tabledata = $manager->get_table_data($settings, $selected);

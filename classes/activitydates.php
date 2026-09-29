@@ -118,6 +118,36 @@ class activitydates {
     }
 
     /**
+     * The saved selection of a settings row, restricted to the valid cmids the
+     * same way selected_from_form() restricts a submitted one, so the table and
+     * fingerprint built on page load match what a Save of that page posts back.
+     * Leftover rows (a deleted cm, a cm of another type) are skipped.
+     *
+     * @param int $activitydatesid tool_activitydates id, 0 when nothing is saved.
+     * @param array $validcmids the cmids that may be selected.
+     * @return int[] selected cmids, in $validcmids order.
+     */
+    public static function saved_selection(int $activitydatesid, array $validcmids): array {
+        global $DB;
+        if (!$activitydatesid) {
+            return [];
+        }
+        $saved = $DB->get_records_menu(
+            'tool_activitydates_cmids',
+            ['activitydates' => $activitydatesid],
+            '',
+            'coursemoduleid, coursemoduleid AS cmid'
+        );
+        $selected = [];
+        foreach ($validcmids as $cmid) {
+            if (isset($saved[(int) $cmid])) {
+                $selected[] = (int) $cmid;
+            }
+        }
+        return $selected;
+    }
+
+    /**
      * Parse the ticked activitygroup[activity_<cmid>] checkboxes.
      *
      * @param \stdClass $fromform submitted form data with an activitygroup array.
