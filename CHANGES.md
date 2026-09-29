@@ -1,5 +1,11 @@
 # Changes
 
+## Unreleased
+
+- Fixed: the user documentation listed Lesson, Workshop and Chat as eligible
+  activity types. None has `timeopen` and `timeclose` columns; in a standard
+  Moodle the eligible types are Quiz, Choice, Feedback and SCORM package.
+
 ## v2.1.0
 
 Brings dates and grade locks onto one page, with close/due options, an

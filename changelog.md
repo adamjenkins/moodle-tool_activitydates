@@ -2,6 +2,14 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- `docs/userdocs.md` no longer lists Lesson, Workshop and Chat as eligible
+  activity types; in a standard Moodle only Quiz, Choice, Feedback and SCORM
+  package have both `timeopen` and `timeclose`.
+
 ## [2.1.0] - 2026-09-29
 
 ### Added

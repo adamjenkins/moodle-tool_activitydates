@@ -17,7 +17,7 @@ The scheduling idea is adapted from [Driprelease](https://moodle.org/plugins/too
 
 ### What counts as an eligible activity
 
-A module type is eligible only if its instance table has **both** a `timeopen` and a `timeclose` column. In a standard Moodle that includes **Quiz, Choice, Feedback, SCORM package, Lesson, Workshop, Chat** and similar. Types without those columns (e.g. Page, Label, URL) never appear. The tool checks the columns live, so third-party modules with the same columns are picked up automatically.
+A module type is eligible only if its instance table has **both** a `timeopen` and a `timeclose` column. In a standard Moodle (5.0 to 5.3) those are **Quiz, Choice, Feedback and SCORM package**. Lesson and Workshop use differently named date columns, so they are not offered. Types without those columns (e.g. Page, Label, URL) never appear. The tool checks the columns live, so third-party modules with the same columns are picked up automatically.
 
 For grade locks, a type is eligible if its activities have gradebook grade items (e.g. Quiz, Assignment). A graded type without the date columns, such as Assignment, is offered for its lock dates only.
 
@@ -57,7 +57,7 @@ Pick the **Activity type** (e.g. Quizzes) from the dropdown. Changing the type p
 
 The dropdown offers two kinds of type, and only those the user can act on:
 
-- **Types with dates** — their instance table has both `timeopen` and `timeclose` (Quiz, Choice, Feedback, SCORM package, Lesson, Workshop, Chat…). They need `:manage`. If they also have gradebook grade items (e.g. Quiz), a user with `:managelocks` can schedule their lock dates too.
+- **Types with dates** — their instance table has both `timeopen` and `timeclose` (in a standard Moodle: Quiz, Choice, Feedback and SCORM package). They need `:manage`. If they also have gradebook grade items (e.g. Quiz), a user with `:managelocks` can schedule their lock dates too.
 - **Lock-only types** — graded types without those date columns, for example **Assignments**. They need `:managelocks`, and for them only the **Locked** date is scheduled.
 
 ### 3. Set the schedule
