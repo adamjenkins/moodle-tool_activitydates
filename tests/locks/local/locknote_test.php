@@ -250,7 +250,7 @@ final class locknote_test extends \advanced_testcase {
         $this->resetAfterTest();
         [$course, $cms] = $this->create_fixture();
         $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
-            'courseid' => $course->id, 'modtype' => 'quiz', 'shownotecoursepage' => 0,
+            'courseid' => $course->id, 'shownotecoursepage' => 0,
         ]);
         $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cms[0]->id, 'shownote' => 1]);
         $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cms[1]->id, 'shownote' => 0]);

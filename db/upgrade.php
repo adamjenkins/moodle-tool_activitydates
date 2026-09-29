@@ -101,5 +101,36 @@ function xmldb_tool_activitydates_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026092900, 'tool', 'activitydates');
     }
 
+    if ($oldversion < 2026092901) {
+        // Grade locks move onto the shared schedule: a lock mode replaces the lock
+        // configuration's own type, start, session length and activities per session.
+        $table = new xmldb_table('tool_activitydates_lock');
+        $fields = [
+            new xmldb_field('lockmode', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, 'none', 'resetunselected'),
+            new xmldb_field('lockdays', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '7', 'lockmode'),
+            new xmldb_field('lockdate', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'lockdays'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+        foreach (['modtype', 'schedulestart', 'sessionlength', 'activitiespersession'] as $name) {
+            $field = new xmldb_field($name);
+            if ($dbman->field_exists($table, $field)) {
+                $dbman->drop_field($table, $field);
+            }
+        }
+
+        // The session finish date is off by default; saved rows keep their value.
+        $table = new xmldb_table('tool_activitydates');
+        $field = new xmldb_field('finishenabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'resetunselected');
+        $dbman->change_field_default($table, $field);
+
+        \tool_activitydates\local\upgrade_helper::convert_lock_config();
+
+        upgrade_plugin_savepoint(true, 2026092901, 'tool', 'activitydates');
+    }
+
     return true;
 }

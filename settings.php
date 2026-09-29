@@ -113,20 +113,26 @@ if ($hassiteconfig) {
         get_string('locksettings_desc', 'tool_activitydates')
     ));
 
-    $settings->add(new admin_setting_configtext(
-        'tool_activitydates/locksessionlength',
-        get_string('locksessionlength', 'tool_activitydates'),
-        get_string('locksessionlength_desc', 'tool_activitydates'),
-        '7',
-        PARAM_INT,
-        3
+    $lockmodes = [
+        'days' => get_string('mode_days', 'tool_activitydates'),
+        'session' => get_string('mode_session', 'tool_activitydates'),
+        'date' => get_string('mode_date', 'tool_activitydates'),
+        'none' => get_string('lockmode_none', 'tool_activitydates'),
+    ];
+
+    $settings->add(new admin_setting_configselect(
+        'tool_activitydates/lockmode',
+        get_string('lockmode', 'tool_activitydates'),
+        get_string('configlockmode', 'tool_activitydates'),
+        'none',
+        $lockmodes
     ));
 
     $settings->add(new admin_setting_configtext(
-        'tool_activitydates/lockactivitiespersession',
-        get_string('lockactivitiespersession', 'tool_activitydates'),
-        get_string('lockactivitiespersession_desc', 'tool_activitydates'),
-        '5',
+        'tool_activitydates/lockdays',
+        get_string('lockdays', 'tool_activitydates'),
+        '',
+        '7',
         PARAM_INT,
         3
     ));

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="admin/tool/activitydates/db" VERSION="2026092900" COMMENT="XMLDB file for Moodle tool_activitydates"
+<XMLDB PATH="admin/tool/activitydates/db" VERSION="2026092901" COMMENT="XMLDB file for Moodle tool_activitydates"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd">
   <TABLES>
@@ -44,13 +44,12 @@
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="ID of the course this configuration applies to"/>
-        <FIELD NAME="modtype" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="The module or activity type last scheduled"/>
-        <FIELD NAME="schedulestart" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when the first session starts"/>
-        <FIELD NAME="sessionlength" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="7" SEQUENCE="false" COMMENT="Number of days per session"/>
-        <FIELD NAME="activitiespersession" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="5" SEQUENCE="false" COMMENT="Number of activities to lock together per session"/>
         <FIELD NAME="shownote" TYPE="int" LENGTH="1" NOTNULL="false" DEFAULT="1" SEQUENCE="false" COMMENT="Default value for showing the student-facing lock note on new selections"/>
         <FIELD NAME="shownotecoursepage" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether switched-on lock notes are also shown on the course page"/>
         <FIELD NAME="resetunselected" TYPE="int" LENGTH="1" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Whether unselected activities of this modtype have their lock time cleared"/>
+        <FIELD NAME="lockmode" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="none" SEQUENCE="false" COMMENT="How lock dates are set: days, session, date or none"/>
+        <FIELD NAME="lockdays" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="7" SEQUENCE="false" COMMENT="Days from the open date to the lock date in days mode"/>
+        <FIELD NAME="lockdate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp of the common lock date in date mode"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp of last modification"/>
       </FIELDS>
       <KEYS>

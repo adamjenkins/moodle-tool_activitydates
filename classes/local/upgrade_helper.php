@@ -17,10 +17,11 @@
 namespace tool_activitydates\local;
 
 /**
- * One-off data conversions for the 2026092900 upgrade (stayavailable -> closemode).
+ * One-off data conversions for the 2026092900 upgrade (stayavailable -> closemode) and
+ * the 2026092901 upgrade (grade locks on the shared schedule).
  *
- * The upgrade step (db/upgrade.php, 2026092900) runs this live code against the
- * 2026092900 schema. Keep it to those columns and literal mode values.
+ * The upgrade steps (db/upgrade.php, 2026092900 and 2026092901) run this live code
+ * against their own schema. Keep it to those columns, config names and literal values.
  *
  * @package    tool_activitydates
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -52,5 +53,24 @@ final class upgrade_helper {
             set_config('duemode', 'none', 'tool_activitydates');
         }
         unset_config('stayavailable', 'tool_activitydates');
+    }
+
+    /**
+     * Convert the site config for grade locks on the shared schedule.
+     *
+     * The lock page's own session length and activities per session are removed. The
+     * lock mode defaults to "no lock", so existing grade locks stay as they are, and the
+     * session finish date defaults to off. Settings already present are kept, so this is
+     * safe to call twice.
+     */
+    public static function convert_lock_config(): void {
+        unset_config('locksessionlength', 'tool_activitydates');
+        unset_config('lockactivitiespersession', 'tool_activitydates');
+        $defaults = ['lockmode' => 'none', 'lockdays' => 7, 'finishenabled' => 0];
+        foreach ($defaults as $name => $value) {
+            if (get_config('tool_activitydates', $name) === false) {
+                set_config($name, $value, 'tool_activitydates');
+            }
+        }
     }
 }

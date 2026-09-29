@@ -40,7 +40,7 @@ final class cleanup_test extends \advanced_testcase {
         foreach ([$course->id, $missing] as $courseid) {
             $datesid = $DB->insert_record('tool_activitydates', (object) ['courseid' => $courseid, 'modtype' => 'quiz']);
             $DB->insert_record('tool_activitydates_cmids', (object) ['activitydates' => $datesid, 'coursemoduleid' => 1]);
-            $lockid = $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $courseid, 'modtype' => 'quiz']);
+            $lockid = $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $courseid]);
             $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => 1, 'shownote' => 1]);
         }
 

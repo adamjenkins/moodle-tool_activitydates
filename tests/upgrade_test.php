@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the stayavailable -> closemode upgrade conversion.
+ * Tests for the upgrade conversions (stayavailable -> closemode, grade locks on the shared schedule).
  *
  * @package    tool_activitydates
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -102,5 +102,46 @@ final class upgrade_test extends \advanced_testcase {
         $this->assertSame('session', get_config('tool_activitydates', 'closemode'));
         $this->assertSame('none', get_config('tool_activitydates', 'duemode'));
         $this->assertFalse(get_config('tool_activitydates', 'stayavailable'));
+    }
+
+    /**
+     * The lock page's own schedule settings go; lock mode, lock days and the finish default are set.
+     */
+    public function test_lock_config_upgrade(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        // Before the upgrade: the 2.0 lock settings exist, the new ones do not.
+        set_config('locksessionlength', 7, 'tool_activitydates');
+        set_config('lockactivitiespersession', 5, 'tool_activitydates');
+        unset_config('lockmode', 'tool_activitydates');
+        unset_config('lockdays', 'tool_activitydates');
+        unset_config('finishenabled', 'tool_activitydates');
+
+        upgrade_helper::convert_lock_config();
+
+        $this->assertFalse(get_config('tool_activitydates', 'locksessionlength'));
+        $this->assertFalse(get_config('tool_activitydates', 'lockactivitiespersession'));
+        $this->assertSame('none', get_config('tool_activitydates', 'lockmode'));
+        $this->assertSame('7', get_config('tool_activitydates', 'lockdays'));
+        $this->assertSame('0', get_config('tool_activitydates', 'finishenabled'));
+
+        // Settings already present are kept.
+        set_config('lockmode', 'days', 'tool_activitydates');
+        set_config('finishenabled', 1, 'tool_activitydates');
+        upgrade_helper::convert_lock_config();
+        $this->assertSame('days', get_config('tool_activitydates', 'lockmode'));
+        $this->assertSame('1', get_config('tool_activitydates', 'finishenabled'));
+
+        // The lock configuration table is on the new schema.
+        $columns = $DB->get_columns('tool_activitydates_lock');
+        foreach (['lockmode', 'lockdays', 'lockdate'] as $name) {
+            $this->assertArrayHasKey($name, $columns);
+        }
+        foreach (['modtype', 'schedulestart', 'sessionlength', 'activitiespersession'] as $name) {
+            $this->assertArrayNotHasKey($name, $columns);
+        }
+        $this->assertSame('none', $columns['lockmode']->default_value);
+        $this->assertEquals(0, $DB->get_columns('tool_activitydates')['finishenabled']->default_value);
     }
 }
