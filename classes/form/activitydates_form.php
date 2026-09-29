@@ -190,6 +190,29 @@ class activitydates_form extends \moodleform {
     }
 
     /**
+     * The form values for a course that has no saved configuration.
+     *
+     * The schedule starts now, and the finish date is enabled (two weeks after
+     * the start) only when the site default tool_activitydates/finishenabled is on.
+     *
+     * @param int $courseid the course id.
+     * @return \stdClass the form values, with finishenabled set.
+     */
+    public static function new_course_defaults(int $courseid): \stdClass {
+        $now = time();
+        $finishenabled = (int) !empty(get_config('tool_activitydates', 'finishenabled'));
+        $defaults = self::form_defaults((object) [
+            'id' => 0,
+            'courseid' => $courseid,
+            'schedulestart' => $now,
+            'finishenabled' => $finishenabled,
+            'schedulefinish' => $now + 14 * DAYSECS,
+        ]);
+        $defaults->finishenabled = $finishenabled;
+        return $defaults;
+    }
+
+    /**
      * The form values for a settings object, with site-config fallbacks.
      *
      * A disabled finish date is 0 (so the optional selector renders disabled),
@@ -207,7 +230,7 @@ class activitydates_form extends \moodleform {
 
         $defaults = clone $settings;
         $defaults->schedulestart = $minute($settings->schedulestart ?? time());
-        $finishenabled = !empty($settings->finishenabled ?? 1) && !empty($settings->schedulefinish);
+        $finishenabled = !empty($settings->finishenabled ?? $config('finishenabled', 0)) && !empty($settings->schedulefinish);
         $defaults->schedulefinish = $finishenabled ? $minute($settings->schedulefinish) : 0;
         $defaults->sessionlength = (int) ($settings->sessionlength ?? $config('sessionlength', 7));
         $defaults->activitiespersession = (int) ($settings->activitiespersession ?? $config('activitiespersession', 2));

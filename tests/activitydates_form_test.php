@@ -160,6 +160,61 @@ final class activitydates_form_test extends \advanced_testcase {
         $this->assertArrayHasKey('activitiespersession', $form->validation($data, []));
     }
 
+    /**
+     * Render the form for a course with no saved configuration, as view.php does.
+     *
+     * @return string the rendered form.
+     */
+    private function render_new_course_form(): string {
+        global $PAGE;
+        $course = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->create_module('quiz', ['course' => $course->id]);
+        $PAGE->set_context(\context_course::instance($course->id));
+        $settings = activitydates_form::new_course_defaults($course->id);
+        $settings->modtype = 'quiz';
+        $form = new activitydates_form('x', [
+            'courseid' => $course->id,
+            'modules' => modtypes::eligible_course_modtypes($course->id),
+            'modtype' => 'quiz',
+            'settings' => $settings,
+        ]);
+        return $form->render();
+    }
+
+    /**
+     * Whether the rendered form's finish date enable checkbox is ticked.
+     *
+     * @param string $html the rendered form.
+     * @return bool
+     */
+    private function finish_checked(string $html): bool {
+        $this->assertSame(1, preg_match('~<input[^>]*name="schedulefinish\[enabled\]"[^>]*>~', $html, $matches));
+        return (bool) preg_match('~\schecked\b~', $matches[0]);
+    }
+
+    public function test_finish_disabled_by_default(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        // No site default (a site that has not saved the setting yet): off.
+        unset_config('finishenabled', 'tool_activitydates');
+        $this->assertSame(0, activitydates_form::new_course_defaults(1)->finishenabled);
+        $this->assertSame(0, activitydates_form::new_course_defaults(1)->schedulefinish);
+        $this->assertFalse($this->finish_checked($this->render_new_course_form()));
+
+        // The site default off: still off.
+        set_config('finishenabled', 0, 'tool_activitydates');
+        $this->assertSame(0, activitydates_form::new_course_defaults(1)->finishenabled);
+        $this->assertFalse($this->finish_checked($this->render_new_course_form()));
+
+        // The site default on: ticked, two weeks after the start.
+        set_config('finishenabled', 1, 'tool_activitydates');
+        $defaults = activitydates_form::new_course_defaults(1);
+        $this->assertSame(1, $defaults->finishenabled);
+        $this->assertSame($defaults->schedulestart + 14 * DAYSECS, $defaults->schedulefinish);
+        $this->assertTrue($this->finish_checked($this->render_new_course_form()));
+    }
+
     public function test_form_defaults(): void {
         $this->resetAfterTest();
         set_config('closemode', 'none', 'tool_activitydates');

@@ -86,14 +86,7 @@ if ($config) {
     $settings->finishenabled = (int) !empty($settings->schedulefinish);
     $settings->schedulefinish = $settings->finishenabled ? $settings->schedulefinish : (int) $config->schedulefinish;
 } else {
-    $settings = activitydates_form::form_defaults((object) [
-        'id' => 0,
-        'courseid' => $courseid,
-        'schedulestart' => time(),
-        'finishenabled' => 1,
-        'schedulefinish' => time() + 14 * DAYSECS,
-    ]);
-    $settings->finishenabled = 1;
+    $settings = activitydates_form::new_course_defaults($courseid);
 }
 $settings->modtype = $modtype;
 

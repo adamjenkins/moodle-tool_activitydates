@@ -46,6 +46,8 @@ Feature: Bulk-schedule activity dates
     And I set the field "schedulestart[year]" to "2030"
     And I set the field "schedulestart[hour]" to "09"
     And I set the field "schedulestart[minute]" to "00"
+    # The finish date is off by default; enable it to cap the schedule.
+    And I set the field "schedulefinish[enabled]" to "1"
     And I set the field "schedulefinish[day]" to "15"
     And I set the field "schedulefinish[month]" to "January"
     And I set the field "schedulefinish[year]" to "2030"

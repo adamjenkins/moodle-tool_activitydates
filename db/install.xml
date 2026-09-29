@@ -14,7 +14,7 @@
         <FIELD NAME="activitiespersession" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Number of activities to schedule per session"/>
         <FIELD NAME="hideunselected" TYPE="int" LENGTH="1" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Whether to hide unselected activities"/>
         <FIELD NAME="resetunselected" TYPE="int" LENGTH="1" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Whether to reset availability for unselected activities"/>
-        <FIELD NAME="finishenabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Whether the schedule finish date caps the sessions scheduled"/>
+        <FIELD NAME="finishenabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Whether the schedule finish date caps the sessions scheduled"/>
         <FIELD NAME="closemode" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="session" SEQUENCE="false" COMMENT="How close dates are set: days, session, date or none"/>
         <FIELD NAME="closedays" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="7" SEQUENCE="false" COMMENT="Days from the open date to the close date in days mode"/>
         <FIELD NAME="closedate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp of the common close date in date mode"/>

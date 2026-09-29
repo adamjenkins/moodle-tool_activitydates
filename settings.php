@@ -59,6 +59,13 @@ if ($hassiteconfig) {
         'none' => get_string('mode_none', 'tool_activitydates'),
     ];
 
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_activitydates/finishenabled',
+        get_string('finishenabled', 'tool_activitydates'),
+        get_string('configfinishenabled', 'tool_activitydates'),
+        0
+    ));
+
     $settings->add(new admin_setting_configselect(
         'tool_activitydates/closemode',
         get_string('closemode', 'tool_activitydates'),
