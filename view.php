@@ -195,4 +195,9 @@ echo $OUTPUT->render_from_template('tool_activitydates/modtable', [
     'editcolspan' => $hasdue ? 3 : 2,
 ]);
 $PAGE->requires->js_call_amd('tool_activitydates/modform', 'init');
+$PAGE->requires->js_call_amd('tool_activitydates/previewtable', 'init', [
+    activitydates_form::FORM_ID,
+    ['modtype', 'schedulestart[', 'schedulefinish[', 'sessionlength', 'activitiespersession', 'closemode', 'closedays',
+        'closedate[', 'duemode', 'duedays', 'duedate[', 'activitygroup['],
+]);
 echo $OUTPUT->footer();

@@ -223,4 +223,8 @@ echo $OUTPUT->render_from_template('tool_activitydates/lockmodtable', [
     'tabledata' => $tabledata,
 ]);
 $PAGE->requires->js_call_amd('tool_activitydates/lockform', 'init');
+$PAGE->requires->js_call_amd('tool_activitydates/previewtable', 'init', [
+    lock_form::FORM_ID,
+    ['modtype', 'schedulestart[', 'sessionlength', 'activitiespersession', 'cmids[]'],
+]);
 echo $OUTPUT->footer();
