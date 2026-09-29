@@ -380,6 +380,40 @@ final class datefields_test extends \basic_testcase {
     }
 
     /**
+     * A wall-clock time in the repeated hour of a DST fall-back is ambiguous: it parses
+     * to a known value (the row's current or proposed date) that shows as it, so a
+     * value shown in the first occurrence is saved unchanged.
+     */
+    public function test_repeated_hour_keeps_known_value(): void {
+        // 01:30 BST and 01:30 GMT on the Europe/London fall-back night.
+        $bst = self::ts('2026-10-25 00:30 UTC');
+        $gmt = $bst + HOURSECS;
+        $this->assertSame('2026-10-25T01:30', datefields::to_input($bst, self::tz()));
+        $this->assertSame('2026-10-25T01:30', datefields::to_input($gmt, self::tz()));
+
+        $this->assertSame($bst, datefields::from_input('2026-10-25T01:30', self::tz(), [$bst]));
+        $this->assertSame($gmt, datefields::from_input('2026-10-25T01:30', self::tz(), [$gmt]));
+        // A known value that does not show as the input is not used.
+        $this->assertSame($gmt, datefields::from_input('2026-10-25T01:30', self::tz(), [$bst - MINSECS]));
+        // A known value keeps its seconds.
+        $this->assertSame($bst + 30, datefields::from_input('2026-10-25T01:30', self::tz(), [$bst + 30]));
+
+        $inputs = self::row(11, '2026-10-25T01:30', '', '2026-10-26T09:00');
+        $inputs['timelock'] = [11 => '2026-10-25T01:30'];
+        [$values, $errors] = datefields::validate_dates(
+            $inputs,
+            [11 => true],
+            false,
+            true,
+            self::tz(),
+            [11 => ['timeopen' => [$bst], 'timelock' => [0, $bst]]]
+        );
+        $this->assertSame([], $errors);
+        $this->assertSame($bst, $values[11]['timeopen']);
+        $this->assertSame($bst, $values[11]['timelock']);
+    }
+
+    /**
      * Values are read in the given (user) timezone.
      */
     public function test_user_timezone(): void {

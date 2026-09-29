@@ -192,7 +192,8 @@ if ($fromform = $mform->get_data()) {
                 $allowed,
                 $editable['duedate'],
                 $editable['timelock'],
-                $tz
+                $tz,
+                datefields::known_values($tabledata)
             );
             if ($rowerrors) {
                 \core\notification::error(get_string('errorrows', 'tool_activitydates', count($rowerrors)));

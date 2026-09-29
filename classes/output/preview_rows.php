@@ -103,7 +103,7 @@ final class preview_rows {
                     $fixed[$cmid][$field] = (int) $current;
                     continue;
                 }
-                $value = is_string($posted) ? datefields::from_input(trim($posted), $tz) : null;
+                $value = is_string($posted) ? datefields::from_input(trim($posted), $tz, [(int) $current]) : null;
                 if ($value !== null) {
                     $fixed[$cmid][$field] = $value;
                 }

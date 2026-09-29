@@ -1414,7 +1414,14 @@ final class activitydates_test extends \advanced_testcase {
                 $coursenotes[] = $cmid;
             }
         }
-        [$values, $errors] = local\datefields::validate_dates($inputs, $allowed, $hasdue, $haslocks, $tz);
+        [$values, $errors] = local\datefields::validate_dates(
+            $inputs,
+            $allowed,
+            $hasdue,
+            $haslocks,
+            $tz,
+            local\datefields::known_values($tabledata)
+        );
         $this->assertSame([], $errors);
         $ticks = array_fill_keys(array_map(fn($cmid) => 'activity_' . $cmid, $selected), 1);
         $fromform = (object) (['activitygroup' => $ticks] + (array) $settings);
@@ -1600,6 +1607,27 @@ final class activitydates_test extends \advanced_testcase {
         }
         ksort($locktimes);
         $this->assertSame([strtotime('2029-05-01 12:00'), strtotime('2029-06-01 12:00')], $locktimes);
+    }
+
+    /**
+     * Save straight after load keeps a date in the first occurrence of the hour a DST
+     * fall-back repeats, which its input shows the same as the second.
+     */
+    public function test_save_after_load_keeps_repeated_hour_date(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $this->setTimezone('Europe/London');
+        [$course, [$quiz]] = $this->graded_quizzes(1);
+        $manager = new activitydates();
+        $manager->update($this->fromform(['activitygroup' => $this->ticks([$quiz])]), $course->id);
+        // 01:30 BST on the Europe/London fall-back night; 01:30 GMT is an hour later.
+        $bst = strtotime('2026-10-25 00:30 UTC');
+        $DB->update_record('quiz', (object) ['id' => $quiz->id, 'timeopen' => $bst, 'timeclose' => $bst + DAYSECS]);
+
+        $this->save_as_loaded($course->id, $manager);
+
+        $this->assertEquals($bst, $DB->get_field('quiz', 'timeopen', ['id' => $quiz->id]));
     }
 
     /**

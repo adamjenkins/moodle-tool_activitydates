@@ -48,13 +48,19 @@ final class datefields {
     /**
      * Parse an input value strictly.
      *
+     * The value has no offset, so a wall-clock time in the hour a DST fall-back repeats
+     * names two instants, and PHP picks the second. A known timestamp (the row's current
+     * or proposed date) that shows as the value wins, so a date the table showed is saved
+     * unchanged.
+     *
      * @param string $value the submitted value.
      * @param \DateTimeZone $tz the user's timezone.
+     * @param int[] $known timestamps the input may have shown.
      * @return int|null 0 for ''; null for a malformed or impossible date, or one at or before
      *   the Unix epoch (0 means "no date", and the ordering rules skip values that are not positive);
      *   else the timestamp.
      */
-    public static function from_input(string $value, \DateTimeZone $tz): ?int {
+    public static function from_input(string $value, \DateTimeZone $tz, array $known = []): ?int {
         if ($value === '') {
             return 0;
         }
@@ -66,8 +72,36 @@ final class datefields {
         if ($date === false || $date->format(self::INPUTFORMAT) !== $value) {
             return null;
         }
+        foreach ($known as $candidate) {
+            if (is_int($candidate) && $candidate > 0 && self::to_input($candidate, $tz) === $value) {
+                return $candidate;
+            }
+        }
         $timestamp = $date->getTimestamp();
         return $timestamp > 0 ? $timestamp : null;
+    }
+
+    /**
+     * The timestamps each row's inputs may have shown: the current and the proposed dates.
+     *
+     * @param array $tabledata rows from activitydates::get_table_data().
+     * @return array cmid => [field => int[]], for validate_dates().
+     */
+    public static function known_values(array $tabledata): array {
+        $known = [];
+        foreach ($tabledata as $row) {
+            if (!empty($row['isheader'])) {
+                continue;
+            }
+            foreach ([$row['current'] ?? [], $row['proposed'] ?? []] as $dates) {
+                foreach ($dates as $field => $timestamp) {
+                    if (is_int($timestamp) && $timestamp > 0) {
+                        $known[(int) $row['id']][$field][] = $timestamp;
+                    }
+                }
+            }
+        }
+        return $known;
     }
 
     /**
@@ -77,14 +111,15 @@ final class datefields {
      * @param string $field the field name.
      * @param int $cmid the cm id.
      * @param \DateTimeZone $tz the user's timezone.
+     * @param array $known cmid => [field => int[]], see from_input().
      * @return int|null as from_input(); a missing input is ''.
      */
-    private static function read(array $inputs, string $field, int $cmid, \DateTimeZone $tz): ?int {
+    private static function read(array $inputs, string $field, int $cmid, \DateTimeZone $tz, array $known): ?int {
         $value = $inputs[$field][$cmid] ?? '';
         if (!is_string($value)) {
             return null;
         }
-        return self::from_input(trim($value), $tz);
+        return self::from_input(trim($value), $tz, $known[$cmid][$field] ?? []);
     }
 
     /**
@@ -96,6 +131,8 @@ final class datefields {
      * @param bool $hasdue whether the type has a duedate column.
      * @param bool $haslocks whether the lock dates are edited (and so parsed).
      * @param \DateTimeZone $tz the user's timezone.
+     * @param array $known cmid => [field => int[]]: the timestamps each input may have shown (see from_input()
+     *   and known_values()).
      * @return array [values, errors]: values[cmid] = ['timeopen' => int, 'duedate' => ?int, 'timeclose' => int,
      *   'timelock' => ?int]; errors[cmid][field] = lang string key. Cms not in $allowed are ignored. Every date
      *   is optional: an empty or missing value is 0 (not set, or for the lock date, cleared), and the ordering
@@ -107,7 +144,8 @@ final class datefields {
         array $allowed,
         bool $hasdue,
         bool $haslocks,
-        \DateTimeZone $tz
+        \DateTimeZone $tz,
+        array $known = []
     ): array {
         $values = [];
         $errors = [];
@@ -115,12 +153,12 @@ final class datefields {
             $cmid = (int) $cmid;
             $rowerrors = [];
 
-            $open = self::read($inputs, 'timeopen', $cmid, $tz);
+            $open = self::read($inputs, 'timeopen', $cmid, $tz, $known);
             if ($open === null) {
                 $rowerrors['timeopen'] = 'errorinvaliddate';
             }
 
-            $close = self::read($inputs, 'timeclose', $cmid, $tz);
+            $close = self::read($inputs, 'timeclose', $cmid, $tz, $known);
             if ($close === null) {
                 $rowerrors['timeclose'] = 'errorinvaliddate';
             } else if ($close > 0 && $open > 0 && $close <= $open) {
@@ -129,7 +167,7 @@ final class datefields {
 
             $due = null;
             if ($hasdue) {
-                $due = self::read($inputs, 'duedate', $cmid, $tz);
+                $due = self::read($inputs, 'duedate', $cmid, $tz, $known);
                 if ($due === null) {
                     $rowerrors['duedate'] = 'errorinvaliddate';
                 } else if ($due > 0 && $open > 0 && $due <= $open) {
@@ -141,7 +179,7 @@ final class datefields {
 
             $lock = null;
             if ($haslocks) {
-                $lock = self::read($inputs, 'timelock', $cmid, $tz);
+                $lock = self::read($inputs, 'timelock', $cmid, $tz, $known);
                 if ($lock === null) {
                     $rowerrors['timelock'] = 'errorinvaliddate';
                 }
@@ -171,7 +209,7 @@ final class datefields {
         $errors = [];
         foreach (array_keys($allowed) as $cmid) {
             $cmid = (int) $cmid;
-            $lock = self::read($inputs, 'locktime', $cmid, $tz);
+            $lock = self::read($inputs, 'locktime', $cmid, $tz, []);
             if ($lock === null) {
                 $errors[$cmid] = ['locktime' => 'errorinvaliddate'];
             } else {
