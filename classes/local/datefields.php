@@ -1,0 +1,164 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace tool_activitydates\local;
+
+/**
+ * Date-field conversion and row validation for the editable date tables.
+ *
+ * Converts between timestamps and datetime-local input values in the user's
+ * timezone, and validates the submitted per-activity rows. No database and
+ * no globals.
+ *
+ * @package    tool_activitydates
+ * @copyright  2026 Adam Jenkins <adam@wisecat.net>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+final class datefields {
+    /** @var string the datetime-local input value format. */
+    public const INPUTFORMAT = 'Y-m-d\TH:i';
+
+    /**
+     * Convert a timestamp to an input value.
+     *
+     * @param int $timestamp the instant, or 0 for no date.
+     * @param \DateTimeZone $tz the user's timezone.
+     * @return string '' for 0; else YYYY-MM-DDTHH:MM in $tz.
+     */
+    public static function to_input(int $timestamp, \DateTimeZone $tz): string {
+        if ($timestamp === 0) {
+            return '';
+        }
+        return (new \DateTimeImmutable('@' . $timestamp))->setTimezone($tz)->format(self::INPUTFORMAT);
+    }
+
+    /**
+     * Parse an input value strictly.
+     *
+     * @param string $value the submitted value.
+     * @param \DateTimeZone $tz the user's timezone.
+     * @return int|null 0 for ''; null for a malformed or impossible date; else the timestamp.
+     */
+    public static function from_input(string $value, \DateTimeZone $tz): ?int {
+        if ($value === '') {
+            return 0;
+        }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/', $value)) {
+            return null;
+        }
+        $date = \DateTimeImmutable::createFromFormat('!' . self::INPUTFORMAT, $value, $tz);
+        // The round trip rejects overflowing dates (30 February) and wall-clock times skipped by DST.
+        if ($date === false || $date->format(self::INPUTFORMAT) !== $value) {
+            return null;
+        }
+        return $date->getTimestamp();
+    }
+
+    /**
+     * Read one submitted value.
+     *
+     * @param array $inputs the inputs, keyed by field then cmid.
+     * @param string $field the field name.
+     * @param int $cmid the cm id.
+     * @param \DateTimeZone $tz the user's timezone.
+     * @return int|null as from_input(); a missing input is ''.
+     */
+    private static function read(array $inputs, string $field, int $cmid, \DateTimeZone $tz): ?int {
+        $value = $inputs[$field][$cmid] ?? '';
+        if (!is_string($value)) {
+            return null;
+        }
+        return self::from_input(trim($value), $tz);
+    }
+
+    /**
+     * Validate the dates-tab rows.
+     *
+     * @param array $inputs ['timeopen' => [cmid => string], 'duedate' => [...], 'timeclose' => [...]].
+     * @param array $allowed cmid => true: selected and scheduled cms of this course and type.
+     * @param bool $hasdue whether the type has a duedate column.
+     * @param \DateTimeZone $tz the user's timezone.
+     * @return array [values, errors]: values[cmid] = ['timeopen' => int, 'duedate' => ?int, 'timeclose' => int];
+     *   errors[cmid][field] = lang string key. Cms not in $allowed are ignored.
+     */
+    public static function validate_dates(array $inputs, array $allowed, bool $hasdue, \DateTimeZone $tz): array {
+        $values = [];
+        $errors = [];
+        foreach (array_keys($allowed) as $cmid) {
+            $cmid = (int) $cmid;
+            $rowerrors = [];
+
+            $open = self::read($inputs, 'timeopen', $cmid, $tz);
+            if ($open === null) {
+                $rowerrors['timeopen'] = 'errorinvaliddate';
+            } else if ($open === 0) {
+                $rowerrors['timeopen'] = 'erroropenrequired';
+            }
+
+            $close = self::read($inputs, 'timeclose', $cmid, $tz);
+            if ($close === null) {
+                $rowerrors['timeclose'] = 'errorinvaliddate';
+            } else if ($close > 0 && $open > 0 && $close <= $open) {
+                $rowerrors['timeclose'] = 'errorclosebeforeopen';
+            }
+
+            $due = null;
+            if ($hasdue) {
+                $due = self::read($inputs, 'duedate', $cmid, $tz);
+                if ($due === null) {
+                    $rowerrors['duedate'] = 'errorinvaliddate';
+                } else if ($due > 0 && $open > 0 && $due <= $open) {
+                    $rowerrors['duedate'] = 'errorduebeforeopen';
+                } else if ($due > 0 && $close > 0 && $due > $close) {
+                    $rowerrors['duedate'] = 'errordueafterclose';
+                }
+            }
+
+            if ($rowerrors) {
+                $errors[$cmid] = $rowerrors;
+            } else {
+                $values[$cmid] = ['timeopen' => $open, 'duedate' => $due, 'timeclose' => $close];
+            }
+        }
+        return [$values, $errors];
+    }
+
+    /**
+     * Validate the locks-tab rows.
+     *
+     * @param array $inputs ['locktime' => [cmid => string]].
+     * @param array $allowed cmid => true: selected cms of this course and type.
+     * @param \DateTimeZone $tz the user's timezone.
+     * @return array [values, errors]: values[cmid] = ['locktime' => int]; errors[cmid]['locktime'] = lang string key.
+     *   Cms not in $allowed are ignored. A date in the past is allowed.
+     */
+    public static function validate_locks(array $inputs, array $allowed, \DateTimeZone $tz): array {
+        $values = [];
+        $errors = [];
+        foreach (array_keys($allowed) as $cmid) {
+            $cmid = (int) $cmid;
+            $lock = self::read($inputs, 'locktime', $cmid, $tz);
+            if ($lock === null) {
+                $errors[$cmid] = ['locktime' => 'errorinvaliddate'];
+            } else if ($lock === 0) {
+                $errors[$cmid] = ['locktime' => 'errorlockrequired'];
+            } else {
+                $values[$cmid] = ['locktime' => $lock];
+            }
+        }
+        return [$values, $errors];
+    }
+}
