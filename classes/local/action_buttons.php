@@ -53,5 +53,7 @@ trait action_buttons {
         }
         $mform->addGroup($buttonarray, 'buttonar', '', [' '], false);
         $mform->setType('buttonar', PARAM_RAW);
+        // Outside the last section, which may be collapsed.
+        $mform->closeHeaderBefore('buttonar');
     }
 }

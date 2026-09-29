@@ -349,6 +349,43 @@ final class activitydates_form_test extends \advanced_testcase {
         }
     }
 
+    /**
+     * The form sections that contain the Save and Cancel buttons.
+     *
+     * @param string $html the rendered form.
+     * @return string[] the ids of the collapsible fieldsets around the button row.
+     */
+    private function button_sections(string $html): array {
+        $doc = new \DOMDocument();
+        $this->assertTrue(@$doc->loadHTML($html));
+        $buttons = (new \DOMXPath($doc))->query('//*[@id="fgroup_id_buttonar"]');
+        $this->assertSame(1, $buttons->length);
+        $sections = [];
+        for ($node = $buttons->item(0)->parentNode; $node instanceof \DOMElement; $node = $node->parentNode) {
+            if ($node->tagName === 'fieldset' && str_contains($node->getAttribute('class'), 'collapsible')) {
+                $sections[] = $node->getAttribute('id');
+            }
+        }
+        return $sections;
+    }
+
+    public function test_buttons_outside_collapsible_sections(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $cases = [
+            // The last section is the collapsed Advanced section.
+            ['quiz', ['canmanage' => true, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
+            // The last section is the Grade locks section, collapsed while there is no lock.
+            ['quiz', ['canmanage' => false, 'canlocks' => true, 'hasdates' => true, 'hasdue' => false]],
+            ['assign', ['canmanage' => true, 'canlocks' => true, 'hasdates' => false, 'hasdue' => false]],
+            ['quiz', ['canmanage' => true, 'canlocks' => false, 'hasdates' => true, 'hasdue' => false]],
+        ];
+        foreach ($cases as [$modtype, $flags]) {
+            $html = $this->render_with($modtype, $flags, ['lockmode' => 'none']);
+            $this->assertSame([], $this->button_sections($html), $modtype . ' ' . json_encode($flags));
+        }
+    }
+
     public function test_lock_settings_validation(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
