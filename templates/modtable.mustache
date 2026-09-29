@@ -67,10 +67,12 @@
         * disabled bool - whether the input is disabled
         * invalid bool - whether the value failed validation
         * error string - the value's error message
+        * holdable bool - whether the field has a Hold checkbox (not Locked without a grade item)
         * fixed bool - whether the Hold checkbox is ticked
         * fixtoggle bool - whether the Hold checkbox follows the row's selection
         * fixdisabled bool - whether the Hold checkbox is disabled
         * fixlabel string - the Hold checkbox's accessible name
+      * hasnotes bool - whether the row has note checkboxes (it has a grade item)
       * shownote bool - whether the activity-page note is ticked
       * shownotecoursepage bool - whether the course-page note is ticked
       * notedisabled bool - whether the note checkboxes are disabled (unselected rows)
@@ -114,15 +116,16 @@
                 "fields": [
                     {"field": "timeopen", "cmid": 56, "label": "Open", "inputlabel": "Open: Quiz 1",
                         "value": "2024-01-05T10:00", "disabled": false, "invalid": false, "error": "",
-                        "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Open for Quiz 1"},
+                        "holdable": true, "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Open for Quiz 1"},
                     {"field": "timeclose", "cmid": 56, "label": "Close", "inputlabel": "Close: Quiz 1",
                         "value": "2024-01-05T09:00", "disabled": false, "invalid": true,
                         "error": "The close date must be after the open date.",
-                        "fixed": true, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Close for Quiz 1"},
+                        "holdable": true, "fixed": true, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Close for Quiz 1"},
                     {"field": "timelock", "cmid": 56, "label": "Locked", "inputlabel": "Locked: Quiz 1",
                         "value": "", "disabled": true, "invalid": false, "error": "",
-                        "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Locked for Quiz 1"}
+                        "holdable": true, "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Locked for Quiz 1"}
                 ],
+                "hasnotes": true,
                 "shownote": true,
                 "shownotecoursepage": false,
                 "notedisabled": false,
@@ -142,8 +145,9 @@
                 "fields": [
                     {"field": "timeopen", "cmid": 57, "label": "Open", "inputlabel": "Open: Quiz 2",
                         "value": "", "disabled": true, "invalid": false, "error": "",
-                        "fixed": false, "fixtoggle": true, "fixdisabled": true, "fixlabel": "Hold Open for Quiz 2"}
+                        "holdable": true, "fixed": false, "fixtoggle": true, "fixdisabled": true, "fixlabel": "Hold Open for Quiz 2"}
                 ],
+                "hasnotes": true,
                 "shownote": false,
                 "shownotecoursepage": false,
                 "notedisabled": true
@@ -239,12 +243,14 @@
                                                     id="tool_activitydates_{{field}}_{{cmid}}"
                                                     aria-describedby="tool_activitydates_{{field}}_{{cmid}}_hint"
                                                     aria-label="{{inputlabel}}"{{#disabled}} disabled{{/disabled}}>
+                                                {{#holdable}}
                                                 <div class="form-check ms-2 text-nowrap">
                                                     <input type="checkbox" class="form-check-input" name="fix_{{field}}[{{cmid}}]" value="1"
                                                         form="{{formid}}" id="tool_activitydates_fix_{{field}}_{{cmid}}"
                                                         aria-label="{{fixlabel}}"{{#fixtoggle}} data-rowcontrol="{{cmid}}"{{/fixtoggle}}{{#fixed}} checked{{/fixed}}{{#fixdisabled}} disabled{{/fixdisabled}}>
                                                     <label class="form-check-label" for="tool_activitydates_fix_{{field}}_{{cmid}}">{{#str}}hold, tool_activitydates{{/str}}</label>
                                                 </div>
+                                                {{/holdable}}
                                             </div>
                                             <div class="invalid-feedback{{#invalid}} d-block{{/invalid}}" data-region="tool_activitydates-hint" data-cmid="{{cmid}}"
                                                 data-field="{{field}}" id="tool_activitydates_{{field}}_{{cmid}}_hint">{{error}}</div>
@@ -253,6 +259,7 @@
                                 </td>
                                 {{#showlocks}}
                                     <td>
+                                        {{#hasnotes}}
                                         <div class="form-check">
                                             <input type="checkbox" class="form-check-input" name="shownote_cmids[]" value="{{id}}" form="{{formid}}"
                                                 id="id_shownote_{{id}}" data-rowcontrol="{{id}}"
@@ -273,6 +280,7 @@
                                                 <span class="visually-hidden">{{name}}</span>
                                             </label>
                                         </div>
+                                        {{/hasnotes}}
                                     </td>
                                 {{/showlocks}}
                                 <td>{{statustext}}</td>

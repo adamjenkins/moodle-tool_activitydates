@@ -233,10 +233,19 @@ final class preview_rows_test extends \advanced_testcase {
         $this->assertSame('2029-12-20T09:00', $fields['timelock']['value']);
         $this->assertFalse($fields['timelock']['fixdisabled']);
 
-        // No grade item: never a lock input.
+        // With a grade item: every field has a Hold checkbox, and the row has note checkboxes.
+        $rows = preview_rows::dates($table, $tz, $this->options());
+        $this->assertSame([true, true, true], array_column($rows[1]['fields'], 'holdable'));
+        $this->assertTrue($rows[1]['hasnotes']);
+
+        // No grade item: never a lock input, no Hold on Locked and no note checkboxes.
         $table[1]['hasgradeitem'] = false;
-        $fields = $this->fields(preview_rows::dates($table, $tz, $this->options())[1]);
+        $rows = preview_rows::dates($table, $tz, $this->options());
+        $fields = $this->fields($rows[1]);
         $this->assertTrue($fields['timelock']['disabled']);
+        $this->assertFalse($fields['timelock']['holdable']);
+        $this->assertTrue($fields['timeopen']['holdable']);
+        $this->assertFalse($rows[1]['hasnotes']);
 
         // Only the present fields, in display order.
         $rows = preview_rows::dates($table, $tz, $this->options(['fields' => ['timelock', 'duedate', 'timeopen']]));

@@ -174,6 +174,8 @@ final class preview_rows {
             $selected = $row['selected'] === 'checked';
             $scheduled = $selected && $row['scheduled'];
             $name = (string) $row['name'];
+            // Without a grade item there is no lock date to hold and no lock note to show.
+            $gradable = !empty($row['hasgradeitem']);
 
             $entries = [];
             foreach ($fields as $field) {
@@ -205,6 +207,7 @@ final class preview_rows {
                     'disabled' => !$enabled,
                     'invalid' => $errorkey !== null,
                     'error' => $errorkey === null ? '' : get_string($errorkey, 'tool_activitydates'),
+                    'holdable' => $field !== 'timelock' || $gradable,
                     'fixed' => $fixed,
                     // Editable Fix checkboxes follow the row's selection (modform.js).
                     'fixtoggle' => !empty($fixable[$field]),
@@ -231,6 +234,7 @@ final class preview_rows {
                 'editable' => $scheduled,
                 'statustext' => $row['status'] === '' ? '' : get_string($row['status'], 'tool_activitydates'),
                 'fields' => $entries,
+                'hasnotes' => $gradable,
                 'shownote' => $shownote,
                 'shownotecoursepage' => $shownotecoursepage,
                 'notedisabled' => !$selected,

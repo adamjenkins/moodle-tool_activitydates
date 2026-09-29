@@ -116,7 +116,7 @@ When the page opens, and again after a save, the table shows each activity's **c
 
 - the selection tick (the header checkbox selects or clears them all), the name, the description, and for quizzes the **Marks** (the quiz's maximum grade);
 - **Dates** — one column that stacks, for each activity, **Open**, **Due** (only for types with a due date, i.e. quizzes on Moodle 5.3 and later), **Close** and **Locked** (with `:managelocks`, for an activity type with gradebook grade items; the lock date is read live from the gradebook). Each date is an editable field with its own **Hold** tick and room for an error message;
-- **Grade-lock note** (with `:managelocks`, for an activity type with gradebook grade items) — two ticks per activity, **Activity page** and **Course page**, each with a header checkbox that switches them all (see *Grade lock notes* below);
+- **Grade-lock note** (with `:managelocks`, for an activity type with gradebook grade items) — two ticks per activity, **Activity page** and **Course page**, each with a header checkbox that switches them all (see *Grade lock notes* below). An activity without a grade item (such as a quiz with a maximum grade of 0) has no note ticks and no **Hold** tick on **Locked**;
 - the status.
 
 An empty date field means the date is not set. Which date fields are editable:
