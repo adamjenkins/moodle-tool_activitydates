@@ -1570,6 +1570,39 @@ final class activitydates_test extends \advanced_testcase {
     }
 
     /**
+     * Save straight after load keeps different lock dates of one activity's grade
+     * items: the Locked input shows the earliest, and an unchanged value is not written.
+     */
+    public function test_save_after_load_keeps_grade_item_locktimes(): void {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/gradelib.php');
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$course, [$quiz]] = $this->graded_quizzes(1);
+        $manager = new activitydates();
+        $manager->update($this->fromform(['activitygroup' => $this->ticks([$quiz])]), $course->id);
+        $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $course->id, 'lockmode' => 'session']);
+        // A second grade item of the quiz, locked later than the first.
+        $first = \grade_item::fetch(['courseid' => $course->id, 'itemtype' => 'mod', 'itemmodule' => 'quiz',
+            'iteminstance' => $quiz->id, 'itemnumber' => 0]);
+        $second = new \grade_item(['courseid' => $course->id, 'itemtype' => 'mod', 'itemmodule' => 'quiz',
+            'iteminstance' => $quiz->id, 'itemnumber' => 1, 'itemname' => 'Second', 'categoryid' => $first->categoryid], false);
+        $second->insert();
+        $first->set_locktime(strtotime('2029-05-01 12:00'));
+        $second->set_locktime(strtotime('2029-06-01 12:00'));
+
+        $result = $this->save_as_loaded($course->id, $manager);
+
+        $this->assertSame(1, $result['locks']);
+        $locktimes = [];
+        foreach (\grade_item::fetch_all(['courseid' => $course->id, 'itemtype' => 'mod', 'iteminstance' => $quiz->id]) as $item) {
+            $locktimes[(int) $item->itemnumber] = (int) $item->get_locktime();
+        }
+        ksort($locktimes);
+        $this->assertSame([strtotime('2029-05-01 12:00'), strtotime('2029-06-01 12:00')], $locktimes);
+    }
+
+    /**
      * Unticking an activity that the page showed ticked still removes it from the lock
      * selection, and "reset unselected" clears its lock.
      */

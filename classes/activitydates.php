@@ -95,7 +95,8 @@ class activitydates {
      * @param bool $canmanage whether the user has tool/activitydates:manage.
      * @param bool $canlocks whether the user has tool/activitydates:managelocks.
      * @param bool $hasdates whether the type has open and close dates.
-     * @return array ['dates' => activities whose dates were written, 'locks' => activities whose locks were written].
+     * @return array ['dates' => activities whose dates were written, 'locks' => activities whose locks were
+     *   written, or already had the posted lock date].
      */
     public function save(
         \stdClass $fromform,
@@ -127,6 +128,10 @@ class activitydates {
             $this->save_lock_config($settings, $courseid, $tabledata, $shownotecmids, $shownotecoursecmids, $keeplocks);
 
             $lockdates = [];
+            // Selected rows whose posted lock date is the current one: nothing to write.
+            // The current one is the earliest of the grade items' lock dates, so writing
+            // it would move the later ones back.
+            $unchanged = 0;
             foreach ($tabledata as $row) {
                 if ($row['isheader'] || !$row['hasgradeitem']) {
                     continue;
@@ -138,14 +143,20 @@ class activitydates {
                 if ($row['selected'] === 'checked') {
                     // Lock mode none leaves the existing locks alone.
                     if ($settings->lockmode !== local\schedule::MODE_NONE && $row['scheduled'] && isset($values[$cmid])) {
-                        $lockdates[$cmid] = (int) ($values[$cmid]['timelock'] ?? 0);
+                        $locktime = (int) ($values[$cmid]['timelock'] ?? 0);
+                        if ($locktime === (int) ($row['current']['timelock'] ?? -1)) {
+                            $unchanged++;
+                        } else {
+                            $lockdates[$cmid] = $locktime;
+                        }
                     }
                 } else if ($settings->lockresetunselected) {
                     $lockdates[$cmid] = 0;
                 }
             }
+            $result['locks'] = $unchanged;
             if ($lockdates) {
-                $result['locks'] = (new locks\manager())->apply_locks($lockdates, $settings->modtype, $courseid, false);
+                $result['locks'] += (new locks\manager())->apply_locks($lockdates, $settings->modtype, $courseid, false);
             }
             event\locks_updated::create(['context' => $context])->trigger();
         }
