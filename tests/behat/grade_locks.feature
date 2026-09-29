@@ -193,3 +193,25 @@ Feature: Bulk-schedule gradebook lock dates
     And I should see "Enter a lock date." in the "Quiz1" "table_row"
     And the "locktime" date input of "Quiz1" should be ""
     And the grade lock date of "quiz1" should be "0"
+
+  @javascript
+  Scenario: The server refuses a lock table built from other settings
+    Given I log in as "teacher1"
+    And I am on the "C1" "tool_activitydates > locks" page
+    And I set the field "schedulestart[day]" to "1"
+    And I set the field "schedulestart[month]" to "January"
+    And I set the field "schedulestart[year]" to "2030"
+    And I set the field "schedulestart[hour]" to "09"
+    And I set the field "schedulestart[minute]" to "00"
+    And I set the field "sessionlength" to "7"
+    And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
+    And I press "Preview"
+    When I set the field "sessionlength" to "3"
+    Then I should see "Settings changed. Press Preview to update the dates."
+    And the "Save and display" "button" should be disabled
+    And I remove the disabled attribute from the "Save and display" button
+    And I press "Save and display"
+    Then I should see "Nothing was saved: the settings changed"
+    And the grade lock date of "quiz1" should be "0"
+    # The table is recalculated from the submitted settings.
+    And the "locktime" date input of "Quiz1" should be "2030-01-04T09:00"

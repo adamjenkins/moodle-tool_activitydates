@@ -98,7 +98,9 @@
 }}
 <div data-region="tool_activitydates-previewtable" data-formid="{{formid}}">
     <input type="hidden" name="tablefingerprint" form="{{formid}}" value="{{fingerprint}}">
-    <div data-region="tool_activitydates-stale" class="alert alert-warning" role="status" hidden>{{#str}}tablestale, tool_activitydates{{/str}}</div>
+    <div role="status">
+        <div data-region="tool_activitydates-stale" class="alert alert-warning" hidden>{{#str}}tablestale, tool_activitydates{{/str}}</div>
+    </div>
     <div class="card">
         <div class="table-responsive">
             <table class="table table-hover table-bordered table-striped">
@@ -145,7 +147,7 @@
                             </td>
                             <td>
                                 {{#selected}}
-                                    <input type="datetime-local" class="form-control{{#locktimeinvalid}} is-invalid{{/locktimeinvalid}}"
+                                    <input type="datetime-local" class="form-control{{#locktimeinvalid}} is-invalid{{/locktimeinvalid}}"{{#locktimeinvalid}} aria-invalid="true"{{/locktimeinvalid}}
                                         name="locktime_rows[{{cmid}}]" form="{{formid}}" value="{{locktimevalue}}"
                                         data-cmid="{{cmid}}" data-field="locktime"
                                         id="tool_activitydates_locktime_{{cmid}}"

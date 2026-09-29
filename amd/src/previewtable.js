@@ -19,7 +19,10 @@
  *
  * The stale bar and the disabled Save buttons are a convenience only: the
  * server refuses a stale table by its fingerprint, and validates every row
- * itself. Hints never block submission.
+ * itself. Hints never block submission. Every row is checked when the page
+ * loads, so proposals that break a row rule are flagged straight after
+ * Preview, and Enter in a table date does not submit the form (it would
+ * press Preview and discard the table's edits).
  *
  * @module     tool_activitydates/previewtable
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -55,6 +58,13 @@ export const init = (formid, watchednames) => {
         return;
     }
     const stalebar = wrapper.querySelector('[data-region="tool_activitydates-stale"]');
+    // The bar sits inside an always-present live region; its text is added only
+    // when the table goes stale, so screen readers announce the change.
+    const staletext = stalebar ? stalebar.textContent.trim() : '';
+    if (stalebar) {
+        stalebar.textContent = '';
+    }
+    let isstale = false;
 
     /**
      * The watched controls: the form's own elements plus any element outside
@@ -114,9 +124,11 @@ export const init = (formid, watchednames) => {
      */
     const compare = () => {
         const stale = changed();
-        if (stalebar) {
+        if (stalebar && stale !== isstale) {
+            stalebar.textContent = stale ? staletext : '';
             stalebar.hidden = !stale;
         }
+        isstale = stale;
         SAVEBUTTONIDS.forEach(id => {
             const button = document.getElementById(id);
             if (button) {
@@ -152,6 +164,15 @@ export const init = (formid, watchednames) => {
         'input[data-cmid="' + cmid + '"][data-field="' + field + '"]');
 
     /**
+     * Inputs the server marked invalid for a reason the rules below cannot see
+     * (an impossible date), with the server's hint text. Kept until the input
+     * itself is edited.
+     *
+     * @type {Map<HTMLInputElement, string>}
+     */
+    const serveronly = new Map();
+
+    /**
      * Mark one input valid or invalid, with its hint text.
      *
      * @param {Object} strings the error texts by key.
@@ -166,22 +187,32 @@ export const init = (formid, watchednames) => {
         }
         const hint = wrapper.querySelector('[data-region="tool_activitydates-hint"]' +
             '[data-cmid="' + cmid + '"][data-field="' + field + '"]');
-        element.classList.toggle('is-invalid', errorkey !== null);
+        let text = errorkey === null ? '' : strings[errorkey];
+        if (errorkey === null && serveronly.has(element)) {
+            text = serveronly.get(element);
+        }
+        const invalid = text !== '';
+        element.classList.toggle('is-invalid', invalid);
+        if (invalid) {
+            element.setAttribute('aria-invalid', 'true');
+        } else {
+            element.removeAttribute('aria-invalid');
+        }
         if (hint) {
-            hint.textContent = errorkey === null ? '' : strings[errorkey];
+            hint.textContent = text;
         }
     };
 
     /**
-     * Validate one row with the same rules as the server (datefields).
+     * Check one row with the same rules as the server (datefields).
      *
      * Values are datetime-local strings in the user's timezone, so they order
      * lexicographically. An incomplete browser value reads as empty.
      *
-     * @param {Object} strings the error texts by key.
      * @param {string} cmid the course module id.
+     * @return {Object} field => error string key, or null when valid, for each field the row has.
      */
-    const validateRow = (strings, cmid) => {
+    const rowErrors = cmid => {
         const value = field => {
             const element = input(cmid, field);
             return element ? element.value : null;
@@ -189,15 +220,19 @@ export const init = (formid, watchednames) => {
 
         const lock = value('locktime');
         if (lock !== null) {
-            mark(strings, cmid, 'locktime', lock === '' ? 'errorlockrequired' : null);
-            return;
+            return {locktime: lock === '' ? 'errorlockrequired' : null};
         }
 
         const open = value('timeopen');
         const close = value('timeclose');
         const due = value('duedate');
-        mark(strings, cmid, 'timeopen', open === '' ? 'erroropenrequired' : null);
-        mark(strings, cmid, 'timeclose', close && open && close <= open ? 'errorclosebeforeopen' : null);
+        const errors = {};
+        if (open !== null) {
+            errors.timeopen = open === '' ? 'erroropenrequired' : null;
+        }
+        if (close !== null) {
+            errors.timeclose = close && open && close <= open ? 'errorclosebeforeopen' : null;
+        }
         if (due !== null) {
             let dueerror = null;
             if (due && open && due <= open) {
@@ -205,9 +240,39 @@ export const init = (formid, watchednames) => {
             } else if (due && close && due > close) {
                 dueerror = 'errordueafterclose';
             }
-            mark(strings, cmid, 'duedate', dueerror);
+            errors.duedate = dueerror;
         }
+        return errors;
     };
+
+    /**
+     * Show one row's hints.
+     *
+     * @param {Object} strings the error texts by key.
+     * @param {string} cmid the course module id.
+     */
+    const validateRow = (strings, cmid) => {
+        Object.entries(rowErrors(cmid)).forEach(([field, errorkey]) => mark(strings, cmid, field, errorkey));
+    };
+
+    const cmids = [...new Set(Array.from(wrapper.querySelectorAll('input[data-field][data-cmid]'))
+        .map(element => element.dataset.cmid))];
+
+    // Keep the server's hints that the rules above would clear.
+    cmids.forEach(cmid => {
+        Object.entries(rowErrors(cmid)).forEach(([field, errorkey]) => {
+            const element = input(cmid, field);
+            const hint = wrapper.querySelector('[data-region="tool_activitydates-hint"]' +
+                '[data-cmid="' + cmid + '"][data-field="' + field + '"]');
+            if (errorkey === null && element && element.classList.contains('is-invalid') && hint) {
+                serveronly.set(element, hint.textContent.trim());
+            }
+        });
+    });
+
+    // Flag proposals that break a row rule as soon as the table is shown.
+    stringsPromise.then(strings => cmids.forEach(cmid => validateRow(strings, cmid)))
+        .catch(Notification.exception);
 
     ['input', 'change'].forEach(type => {
         wrapper.addEventListener(type, e => {
@@ -215,8 +280,18 @@ export const init = (formid, watchednames) => {
             if (!(target instanceof HTMLInputElement) || !target.dataset.field || !target.dataset.cmid) {
                 return;
             }
+            serveronly.delete(target);
             stringsPromise.then(strings => validateRow(strings, target.dataset.cmid))
                 .catch(Notification.exception);
         });
+    });
+
+    // Enter in a date would submit the form with its first button, Preview,
+    // which recalculates the table and drops every edit.
+    wrapper.addEventListener('keydown', e => {
+        const target = e.target;
+        if (e.key === 'Enter' && target instanceof HTMLInputElement && target.dataset.field) {
+            e.preventDefault();
+        }
     });
 };

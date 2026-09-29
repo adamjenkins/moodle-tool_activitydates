@@ -146,7 +146,9 @@
 }}
 <div data-region="tool_activitydates-previewtable" data-formid="{{formid}}">
     <input type="hidden" name="tablefingerprint" form="{{formid}}" value="{{fingerprint}}">
-    <div data-region="tool_activitydates-stale" class="alert alert-warning" role="status" hidden>{{#str}}tablestale, tool_activitydates{{/str}}</div>
+    <div role="status">
+        <div data-region="tool_activitydates-stale" class="alert alert-warning" hidden>{{#str}}tablestale, tool_activitydates{{/str}}</div>
+    </div>
     <div class="card">
         <div class="table-responsive">
             <table class="table table-hover table-bordered table-striped">
@@ -223,7 +225,7 @@
                                 </td>
                                 {{#editable}}
                                     <td>
-                                        <input type="datetime-local" class="form-control{{#timeopeninvalid}} is-invalid{{/timeopeninvalid}}"
+                                        <input type="datetime-local" class="form-control{{#timeopeninvalid}} is-invalid{{/timeopeninvalid}}"{{#timeopeninvalid}} aria-invalid="true"{{/timeopeninvalid}}
                                             name="timeopen_rows[{{id}}]" form="{{formid}}" value="{{timeopenvalue}}"
                                             data-cmid="{{id}}" data-field="timeopen"
                                             id="tool_activitydates_timeopen_{{id}}"
@@ -234,7 +236,7 @@
                                     </td>
                                     {{#hasdue}}
                                         <td>
-                                            <input type="datetime-local" class="form-control{{#duedateinvalid}} is-invalid{{/duedateinvalid}}"
+                                            <input type="datetime-local" class="form-control{{#duedateinvalid}} is-invalid{{/duedateinvalid}}"{{#duedateinvalid}} aria-invalid="true"{{/duedateinvalid}}
                                                 name="duedate_rows[{{id}}]" form="{{formid}}" value="{{duedatevalue}}"
                                                 data-cmid="{{id}}" data-field="duedate"
                                                 id="tool_activitydates_duedate_{{id}}"
@@ -245,7 +247,7 @@
                                         </td>
                                     {{/hasdue}}
                                     <td>
-                                        <input type="datetime-local" class="form-control{{#timecloseinvalid}} is-invalid{{/timecloseinvalid}}"
+                                        <input type="datetime-local" class="form-control{{#timecloseinvalid}} is-invalid{{/timecloseinvalid}}"{{#timecloseinvalid}} aria-invalid="true"{{/timecloseinvalid}}
                                             name="timeclose_rows[{{id}}]" form="{{formid}}" value="{{timeclosevalue}}"
                                             data-cmid="{{id}}" data-field="timeclose"
                                             id="tool_activitydates_timeclose_{{id}}"

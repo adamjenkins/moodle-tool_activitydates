@@ -197,6 +197,20 @@ class behat_tool_activitydates extends behat_base {
     }
 
     /**
+     * Move the keyboard focus to one editable date in the preview table.
+     *
+     * @When /^I focus the "(?P<field>[^"]*)" date of "(?P<activityname>[^"]*)"$/
+     *
+     * @param string $field The date field: timeopen, duedate, timeclose or locktime.
+     * @param string $activityname The activity name shown in the table.
+     * @throws ExpectationException If the row has no such input.
+     */
+    public function i_focus_the_date_of_activity(string $field, string $activityname): void {
+        $input = $this->find_date_input($field, $activityname);
+        $this->execute_js_on_node($input, '{{ELEMENT}}.focus();');
+    }
+
+    /**
      * Check the value of one editable date in the preview table.
      *
      * @Then /^the "(?P<field>[^"]*)" date input of "(?P<activityname>[^"]*)" should be "(?P<value>[^"]*)"$/

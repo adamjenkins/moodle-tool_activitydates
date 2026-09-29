@@ -82,6 +82,7 @@ Feature: Preview and edit activity dates before saving
   Scenario: An invalid row blocks Save and keeps the edits
     When I set the "timeclose" date of "Quiz1" to "2029-12-31T09:00"
     Then I should see "The close date must be after the open date." in the "Quiz1" "table_row"
+    And the "aria-invalid" attribute of "//tr[.//a[normalize-space(.)='Quiz1']]//input[@data-field='timeclose']" "xpath_element" should contain "true"
     And I press "Save and display"
     Then I should see "Nothing was saved: 1 date(s) need correcting"
     And I should see "The close date must be after the open date." in the "Quiz1" "table_row"
@@ -107,8 +108,7 @@ Feature: Preview and edit activity dates before saving
     And I press "Preview"
     # Due = open + 10 days, after the session's close (open + 7 days).
     And the "duedate" date input of "Quiz1" should be "2030-01-11T09:00"
-    # The inline hint runs when a date is edited; re-enter the proposed value.
-    When I set the "duedate" date of "Quiz1" to "2030-01-11T09:00"
+    # Preview alone flags the proposal.
     Then I should see "The due date cannot be after the close date." in the "Quiz1" "table_row"
     And I press "Save and display"
     And I should see "Nothing was saved: 4 date(s) need correcting"
@@ -122,3 +122,44 @@ Feature: Preview and edit activity dates before saving
     And the "duedate" of "quiz1" should be "2030-01-04T09:00"
     And the "timeclose" of "quiz1" should be "2030-01-08T09:00"
     And the "duedate" of "quiz3" should be "2030-01-11T09:00"
+
+  Scenario: Preview flags a proposed date that breaks a row rule
+    # One close date for all: session 2 opens on 8 Jan, after it.
+    When I set the field "Close dates" to "All on a date"
+    And I set the field "closedate[day]" to "5"
+    And I set the field "closedate[month]" to "January"
+    And I set the field "closedate[year]" to "2030"
+    And I set the field "closedate[hour]" to "09"
+    And I set the field "closedate[minute]" to "00"
+    And I press "Preview"
+    Then the "timeclose" date input of "Quiz3" should be "2030-01-05T09:00"
+    And I should see "The close date must be after the open date." in the "Quiz3" "table_row"
+    And I should not see "The close date must be after the open date." in the "Quiz1" "table_row"
+
+  Scenario: Enter in a table date keeps the edits and does not submit
+    When I set the "timeopen" date of "Quiz2" to "2030-01-03T10:30"
+    And I focus the "timeopen" date of "Quiz2"
+    And I press the enter key
+    Then the "timeopen" date input of "Quiz2" should be "2030-01-03T10:30"
+    And I press "Save and display"
+    And I should see "Updated dates for 4 of"
+    And the "timeopen" of "quiz2" should be "2030-01-03T10:30"
+
+  Scenario: A date only the server rejects keeps its hint while other dates are edited
+    When I set the "timeopen" date of "Quiz1" to "1969-12-31T09:00"
+    And I press "Save and display"
+    Then I should see "Nothing was saved: 1 date(s) need correcting"
+    And I should see "Enter a valid date and time." in the "Quiz1" "table_row"
+    When I set the "timeclose" date of "Quiz1" to "2030-01-09T09:00"
+    Then I should see "Enter a valid date and time." in the "Quiz1" "table_row"
+    And the "timeopen" of "quiz1" should be "0"
+
+  Scenario: Save straight after load succeeds when a saved activity was deleted
+    Given I press "Save and display"
+    And I should see "Updated dates for 4 of"
+    And I am on "Course 1" course homepage with editing mode on
+    And I delete "Quiz4" activity
+    When I am on the "C1" "tool_activitydates > dates" page
+    And I press "Save and display"
+    Then I should see "Updated dates for 3 of"
+    And I should not see "Nothing was saved"
