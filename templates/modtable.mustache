@@ -19,8 +19,8 @@
 
     Table of a course's activities of one module type and the sessions they are
     scheduled into. One Dates column stacks each activity's open, (due), close
-    and lock dates, each an input with a Fix checkbox. The inputs show the
-    current values, or on Preview the proposals (fixed fields keep their
+    and lock dates, each an input with a Hold checkbox. The inputs show the
+    current values, or on Preview the proposals (held fields keep their
     values); inputs the user cannot change are disabled. The Grade-lock note
     column has the activity-page and course-page note checkboxes. The inputs sit
     outside the moodleform and carry form="formid" so they post with it.
@@ -39,9 +39,9 @@
     * formid string - the id of the moodleform the inputs submit with
     * fingerprint string - the settings fingerprint the table was built from
     * showlocks bool - whether to show the Grade-lock note column (:managelocks and a graded type)
-    * fixhelp object - the core/help_icon context of the Fix help
+    * fixhelp object - the core/help_icon context of the Hold help
     * modname string - the module type name (e.g. quiz), used in the activity links
-    * showquestioncount bool - whether to show the question count column
+    * showmarks bool - whether to show the Marks column
     * colcount int - number of visible columns, drives the session header colspan
     * tabledata array - list of header and activity rows
       * isheader bool - true for a session header row
@@ -55,7 +55,7 @@
       * name string - the activity name (activity rows)
       * intro string - the activity description (activity rows)
       * selected string - "checked" when the activity is selected (activity rows)
-      * questioncount int - number of questions (quiz activity rows)
+      * marks string - the formatted maximum grade (quiz activity rows)
       * editable bool - whether the row is selected and scheduled
       * statustext string - what Save does to a row that is not scheduled
       * fields array - the row's dates, in display order
@@ -67,10 +67,10 @@
         * disabled bool - whether the input is disabled
         * invalid bool - whether the value failed validation
         * error string - the value's error message
-        * fixed bool - whether the Fix checkbox is ticked
-        * fixtoggle bool - whether the Fix checkbox follows the row's selection
-        * fixdisabled bool - whether the Fix checkbox is disabled
-        * fixlabel string - the Fix checkbox's accessible name
+        * fixed bool - whether the Hold checkbox is ticked
+        * fixtoggle bool - whether the Hold checkbox follows the row's selection
+        * fixdisabled bool - whether the Hold checkbox is disabled
+        * fixlabel string - the Hold checkbox's accessible name
       * shownote bool - whether the activity-page note is ticked
       * shownotecoursepage bool - whether the course-page note is ticked
       * notedisabled bool - whether the note checkboxes are disabled (unselected rows)
@@ -85,11 +85,11 @@
         "showlocks": true,
         "fixhelp": {
             "text": "Keep this date when the dates are previewed.",
-            "alt": "Help with Fix",
+            "alt": "Help with Hold",
             "ltr": true
         },
         "modname": "quiz",
-        "showquestioncount": true,
+        "showmarks": true,
         "colcount": 7,
         "tabledata": [
             {
@@ -108,20 +108,20 @@
                 "name": "Quiz 1",
                 "intro": "First quiz",
                 "selected": "checked",
-                "questioncount": 5,
+                "marks": "10.00",
                 "editable": true,
                 "statustext": "",
                 "fields": [
                     {"field": "timeopen", "cmid": 56, "label": "Open", "inputlabel": "Open: Quiz 1",
                         "value": "2024-01-05T10:00", "disabled": false, "invalid": false, "error": "",
-                        "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Fix Open for Quiz 1"},
+                        "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Open for Quiz 1"},
                     {"field": "timeclose", "cmid": 56, "label": "Close", "inputlabel": "Close: Quiz 1",
                         "value": "2024-01-05T09:00", "disabled": false, "invalid": true,
                         "error": "The close date must be after the open date.",
-                        "fixed": true, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Fix Close for Quiz 1"},
+                        "fixed": true, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Close for Quiz 1"},
                     {"field": "timelock", "cmid": 56, "label": "Locked", "inputlabel": "Locked: Quiz 1",
                         "value": "", "disabled": true, "invalid": false, "error": "",
-                        "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Fix Locked for Quiz 1"}
+                        "fixed": false, "fixtoggle": true, "fixdisabled": false, "fixlabel": "Hold Locked for Quiz 1"}
                 ],
                 "shownote": true,
                 "shownotecoursepage": false,
@@ -136,13 +136,13 @@
                 "name": "Quiz 2",
                 "intro": "",
                 "selected": "",
-                "questioncount": 3,
+                "marks": "20.00",
                 "editable": false,
                 "statustext": "Not scheduled",
                 "fields": [
                     {"field": "timeopen", "cmid": 57, "label": "Open", "inputlabel": "Open: Quiz 2",
                         "value": "", "disabled": true, "invalid": false, "error": "",
-                        "fixed": false, "fixtoggle": true, "fixdisabled": true, "fixlabel": "Fix Open for Quiz 2"}
+                        "fixed": false, "fixtoggle": true, "fixdisabled": true, "fixlabel": "Hold Open for Quiz 2"}
                 ],
                 "shownote": false,
                 "shownotecoursepage": false,
@@ -168,9 +168,9 @@
                         </th>
                         <th scope="col" class="col-md-0">{{#str}}name{{/str}}</th>
                         <th scope="col" class="col-md-3">{{#str}}description{{/str}}</th>
-                        {{#showquestioncount}}
-                            <th scope="col" class="col-md-1">{{#str}}questioncount, tool_activitydates{{/str}}</th>
-                        {{/showquestioncount}}
+                        {{#showmarks}}
+                            <th scope="col" class="col-md-1">{{#str}}marks, tool_activitydates{{/str}}</th>
+                        {{/showmarks}}
                         <th scope="col">
                             {{#str}}datescolumn, tool_activitydates{{/str}}
                             {{#fixhelp}}{{>core/help_icon}}{{/fixhelp}}
@@ -225,9 +225,9 @@
                                 </td>
                                 <td><a href="{{config.wwwroot}}/mod/{{modname}}/view.php?id={{id}}">{{name}}</a></td>
                                 <td>{{intro}}</td>
-                                {{#showquestioncount}}
-                                    <td>{{questioncount}}</td>
-                                {{/showquestioncount}}
+                                {{#showmarks}}
+                                    <td>{{marks}}</td>
+                                {{/showmarks}}
                                 <td>
                                     {{#fields}}
                                         <div class="mb-1">
@@ -243,7 +243,7 @@
                                                     <input type="checkbox" class="form-check-input" name="fix_{{field}}[{{cmid}}]" value="1"
                                                         form="{{formid}}" id="tool_activitydates_fix_{{field}}_{{cmid}}"
                                                         aria-label="{{fixlabel}}"{{#fixtoggle}} data-rowcontrol="{{cmid}}"{{/fixtoggle}}{{#fixed}} checked{{/fixed}}{{#fixdisabled}} disabled{{/fixdisabled}}>
-                                                    <label class="form-check-label" for="tool_activitydates_fix_{{field}}_{{cmid}}">{{#str}}fix, tool_activitydates{{/str}}</label>
+                                                    <label class="form-check-label" for="tool_activitydates_fix_{{field}}_{{cmid}}">{{#str}}hold, tool_activitydates{{/str}}</label>
                                                 </div>
                                             </div>
                                             <div class="invalid-feedback{{#invalid}} d-block{{/invalid}}" data-region="tool_activitydates-hint" data-cmid="{{cmid}}"

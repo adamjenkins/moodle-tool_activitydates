@@ -55,7 +55,7 @@ final class preview_rows_test extends \advanced_testcase {
             'isheader' => false,
             'cm' => new \stdClass(),
             'intro' => '',
-            'questioncount' => 1,
+            'marks' => '10.00',
             'hasgradeitem' => true,
             'shownote' => false,
             'shownotecoursepage' => false,
@@ -126,7 +126,7 @@ final class preview_rows_test extends \advanced_testcase {
         $this->assertFalse($fields['timeopen']['fixdisabled']);
         $this->assertSame(get_string('open', 'tool_activitydates') . ': Quiz A', $fields['timeopen']['inputlabel']);
         $this->assertSame(
-            get_string('fixfield', 'tool_activitydates', (object) ['field' => get_string('open', 'tool_activitydates'),
+            get_string('holdfield', 'tool_activitydates', (object) ['field' => get_string('open', 'tool_activitydates'),
                 'name' => 'Quiz A']),
             $fields['timeopen']['fixlabel']
         );

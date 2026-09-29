@@ -636,7 +636,8 @@ class activitydates {
         $savedfixed = self::load_fixed($courseid, $cmids);
 
         // The current values of every cm, which the saved Fix flags keep.
-        $fields = 'id, intro' . ($hasdates ? ', timeopen, timeclose' : '') . ($hasdue ? ', duedate' : '');
+        $fields = 'id, intro' . ($hasdates ? ', timeopen, timeclose' : '') . ($hasdue ? ', duedate' : '')
+            . ($settings->modtype === 'quiz' ? ', grade, decimalpoints' : '');
         $instances = [];
         $current = [];
         foreach ($modules as $cmid => $cm) {
@@ -707,9 +708,10 @@ class activitydates {
             foreach ($chunk as $cm) {
                 $cmid = (int) $cm->id;
                 $instance = $instances[$cm->id];
-                $questioncount = null;
+                // A quiz's maximum grade, shown as the quiz shows it.
+                $marks = null;
                 if ($settings->modtype === 'quiz') {
-                    $questioncount = $DB->count_records('quiz_slots', ['quizid' => $cm->instance]);
+                    $marks = format_float((float) $instance->grade, (int) $instance->decimalpoints);
                 }
                 $isselected = isset($selected[$cmid]);
                 $proposed = $computed['dates'][$cmid] ?? null;
@@ -731,7 +733,7 @@ class activitydates {
                     'name' => $cm->name,
                     'intro' => strip_tags($instance->intro ?? ''),
                     'selected' => $isselected ? 'checked' : '',
-                    'questioncount' => $questioncount,
+                    'marks' => $marks,
                     'dates' => $window,
                     'scheduled' => $proposed !== null,
                     'proposed' => $proposed,

@@ -230,6 +230,8 @@ final class activitydates_test extends \advanced_testcase {
                 'course' => $course->id,
                 'name' => 'Quiz' . $i,
                 'intro' => '<p>Description of <strong>Quiz' . $i . '</strong></p>',
+                'grade' => 10 * $i,
+                'decimalpoints' => $i === 4 ? 0 : 2,
             ]);
         }
 
@@ -280,7 +282,7 @@ final class activitydates_test extends \advanced_testcase {
         $this->assertCount(4, $datarows);
         foreach ($datarows as $row) {
             foreach (
-                ['cm', 'id', 'name', 'intro', 'selected', 'questioncount', 'dates', 'timeopen',
+                ['cm', 'id', 'name', 'intro', 'selected', 'marks', 'dates', 'timeopen',
                     'timeopenformatted', 'timeopenattr', 'timeclose', 'timecloseformatted',
                     'timecloseattr', 'scheduled', 'proposed', 'status', 'duedate'] as $key
             ) {
@@ -294,6 +296,9 @@ final class activitydates_test extends \advanced_testcase {
         }
         // The description is plain text for the template: HTML tags are stripped.
         $this->assertSame('Description of Quiz1', $byname['Quiz1']['intro']);
+        // Marks is the quiz's maximum grade, with the quiz's decimal places.
+        $this->assertSame(format_float(10, 2), $byname['Quiz1']['marks']);
+        $this->assertSame('40', $byname['Quiz4']['marks']);
 
         $this->assertSame('', $byname['Quiz1']['selected']);
         $this->assertSame('checked', $byname['Quiz2']['selected']);

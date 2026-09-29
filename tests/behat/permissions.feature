@@ -55,7 +55,7 @@ Feature: The Activity dates page shows and saves only what the user may change
       | Lock grades           | At the end of this session |
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_cmid_')]" to "1"
     And I press "Preview"
-    # Open and close are shown disabled, with no Fix box to tick: only the lock date is editable.
+    # Open and close are shown disabled, with no Hold box to tick: only the lock date is editable.
     And the "//tr[.//a[normalize-space(.)='Quiz1']]//input[@data-field='timeopen']" "xpath_element" should be disabled
     And the "//tr[.//a[normalize-space(.)='Quiz1']]//input[@data-field='timeclose']" "xpath_element" should be disabled
     And the "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'tool_activitydates_fix_timeopen_')]" "xpath_element" should be disabled

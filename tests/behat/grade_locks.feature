@@ -337,7 +337,7 @@ Feature: Schedule gradebook lock dates on the Activity dates page
     And I am on the "Quiz2" "quiz activity" page
     And I should see "Grades lock after"
 
-  Scenario: Save straight after load changes no date, lock or Fix flag
+  Scenario: Save straight after load changes no date, lock or Hold flag
     Given I log in as "teacher1"
     And I am on the "C1" "tool_activitydates > dates" page
     And I expand all fieldsets

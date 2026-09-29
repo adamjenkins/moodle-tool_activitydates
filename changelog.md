@@ -27,9 +27,9 @@ All notable changes to `tool_activitydates` are documented in this file.
   them with the proposals. Save writes exactly the table's dates, so a save
   straight after loading changes nothing. Fields the user cannot change are
   disabled.
-- A **Fix** checkbox for each date. A fixed date keeps its value through
+- A **Hold** checkbox for each date. A held date keeps its value through
   Preview, even when the settings change, and "after a number of days" counts
-  from a fixed open date. The flags are stored per activity and field in the
+  from a held open date. The flags are stored per activity and field in the
   new table `tool_activitydates_fixed` (`:manage` for open, due and close,
   `:managelocks` for the lock date) and deleted with the course.
 - A **Grade-lock note** column with per-activity **Activity page** and **Course
@@ -41,12 +41,14 @@ All notable changes to `tool_activitydates` are documented in this file.
   edited values are kept with an error on each wrong field.
 - Stale-table protection: changing a date-affecting setting or the selection
   after a Preview shows a "Settings changed" bar and disables the Save buttons;
-  the server refuses a save whose settings no longer match the table. The Fix
+  the server refuses a save whose settings no longer match the table. The Hold
   and note checkboxes are not part of this check.
 
 ### Changed
 
 - Declare Moodle 5.3 support.
+- For quizzes, the table's Question count column is replaced by **Marks**, the
+  quiz's maximum grade.
 - The Grade locks tab is merged into the Activity dates page as a collapsible
   Grade locks section, collapsed while the lock option is No lock. `locks.php`
   redirects to `view.php`. The page needs `:manage` or `:managelocks` and shows

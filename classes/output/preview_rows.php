@@ -210,7 +210,7 @@ final class preview_rows {
                     'fixtoggle' => !empty($fixable[$field]),
                     'fixdisabled' => !$selected || empty($fixable[$field]),
                     'fixlabel' => get_string(
-                        'fixfield',
+                        'holdfield',
                         'tool_activitydates',
                         (object) ['field' => $labels[$field], 'name' => $name]
                     ),
@@ -227,7 +227,7 @@ final class preview_rows {
                 'name' => $name,
                 'intro' => $row['intro'],
                 'selected' => $row['selected'],
-                'questioncount' => $row['questioncount'],
+                'marks' => $row['marks'],
                 'editable' => $scheduled,
                 'statustext' => $row['status'] === '' ? '' : get_string($row['status'], 'tool_activitydates'),
                 'fields' => $entries,

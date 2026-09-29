@@ -41,10 +41,10 @@ optional finish date and an editable preview table.
   settings and selection. Save writes exactly the dates in the table after
   checking every row; if a row is wrong, nothing is written and the edits are
   kept. Fields the user cannot change are shown disabled.
-- New: a **Fix** checkbox on each date keeps it through Preview, even when the
-  settings change; "after a number of days" counts from a fixed open date. The
-  flags are saved per activity and date. Fixing open, due and close needs
-  `tool/activitydates:manage`; fixing the lock date needs
+- New: a **Hold** checkbox on each date keeps it through Preview, even when the
+  settings change; "after a number of days" counts from a held open date. The
+  flags are saved per activity and date. Holding open, due and close needs
+  `tool/activitydates:manage`; holding the lock date needs
   `tool/activitydates:managelocks`.
 - Changed: the student notes are chosen per activity, in a **Grade-lock note**
   column with **Activity page** and **Course page** checkboxes (each with a
@@ -63,7 +63,7 @@ optional finish date and an editable preview table.
   are set.
 - New: a changed setting or selection marks the table stale. A bar asks for a
   new Preview and the Save buttons are disabled; the server also refuses a save
-  whose settings no longer match the table. The Fix and note checkboxes do not
+  whose settings no longer match the table. The Hold and note checkboxes do not
   mark it stale.
 - Changed: "At the end of this session" now closes an activity when the next
   session opens. 2.0.0 closed it the day before, at the finish date's time.
@@ -72,6 +72,8 @@ optional finish date and an editable preview table.
   daylight-saving change repeats is saved as the table showed it.
 - Changed: a lock date saved unchanged is not rewritten, so an activity whose
   grade items have different lock dates keeps them.
+- Changed: for quizzes, the table's **Question count** column is replaced by
+  **Marks**, the quiz's maximum grade.
 
 ## v2.0.0
 

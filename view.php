@@ -287,7 +287,7 @@ if ($canlocks) {
 $mform->set_data($settings);
 $mform->set_selection($selected);
 
-$showquestioncount = $modtype === 'quiz';
+$showmarks = $modtype === 'quiz';
 // The Dates column's fields: open, (due) and close for a type with dates, Locked for a
 // graded type the user may lock.
 $fields = $hasdates ? array_merge(['timeopen'], $hasdue ? ['duedate'] : [], ['timeclose']) : [];
@@ -301,7 +301,7 @@ echo $OUTPUT->render_from_template('tool_activitydates/modtable', [
     'formid' => activitydates_form::FORM_ID,
     'fingerprint' => fingerprint::dates($settings, $selected, $hasdue, $haslocks($settings)),
     'showlocks' => $showlocks,
-    'fixhelp' => (new \core\output\help_icon('fix', 'tool_activitydates'))->export_for_template($OUTPUT),
+    'fixhelp' => (new \core\output\help_icon('hold', 'tool_activitydates'))->export_for_template($OUTPUT),
     'tabledata' => preview_rows::dates($tabledata, $tz, [
         'source' => $source,
         'fields' => $fields,
@@ -314,10 +314,10 @@ echo $OUTPUT->render_from_template('tool_activitydates/modtable', [
         'coursenotecmids' => $coursenotecmids,
     ]),
     'modname' => $modtype,
-    'showquestioncount' => $showquestioncount,
-    // The select, name, description, Dates and status columns, plus questions and
+    'showmarks' => $showmarks,
+    // The select, name, description, Dates and status columns, plus marks and
     // the grade-lock note when shown.
-    'colcount' => 5 + (int) $showquestioncount + (int) $showlocks,
+    'colcount' => 5 + (int) $showmarks + (int) $showlocks,
 ]);
 $PAGE->requires->js_call_amd('tool_activitydates/modform', 'init');
 $PAGE->requires->js_call_amd('tool_activitydates/previewtable', 'init', [
