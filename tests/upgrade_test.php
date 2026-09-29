@@ -15,7 +15,8 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the upgrade conversions (stayavailable -> closemode, grade locks on the shared schedule).
+ * Tests for the upgrade conversions (stayavailable -> closemode, grade locks on the shared schedule,
+ * per-activity course-page notes).
  *
  * @package    tool_activitydates
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -26,6 +27,7 @@ namespace tool_activitydates;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use tool_activitydates\local\upgrade_helper;
+use tool_activitydates\locks\local\locknote;
 
 /**
  * Tests for the upgrade_helper class.
@@ -143,5 +145,92 @@ final class upgrade_test extends \advanced_testcase {
         }
         $this->assertSame('none', $columns['lockmode']->default_value);
         $this->assertEquals(0, $DB->get_columns('tool_activitydates')['finishenabled']->default_value);
+    }
+
+    /**
+     * A 2.0 course with the course-page option on keeps its noted activities' course-page
+     * notes after the upgrade; other items and courses do not gain one.
+     */
+    public function test_note_course_page_migrated(): void {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/gradelib.php');
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $noted = $generator->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
+        $unnoted = $generator->create_module('quiz', ['course' => $course->id, 'grade' => 100]);
+        $student = $generator->create_and_enrol($course, 'student');
+        $othercourse = $generator->create_course();
+        $othernoted = $generator->create_module('quiz', ['course' => $othercourse->id, 'grade' => 100]);
+
+        // The test DB is already at the new schema: put the old lock columns back for this test.
+        $dbman = $DB->get_manager();
+        $table = new \xmldb_table('tool_activitydates_lock');
+        $fields = [
+            new \xmldb_field('shownote', XMLDB_TYPE_INTEGER, '1', null, null, null, '1'),
+            new \xmldb_field('shownotecoursepage', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0'),
+        ];
+        foreach ($fields as $field) {
+            $dbman->add_field($table, $field);
+        }
+        try {
+            $items = [];
+            foreach ([[$course->id, 1, [$noted, $unnoted]], [$othercourse->id, 0, [$othernoted]]] as [$courseid, $option, $cms]) {
+                $lockid = $DB->insert_record(
+                    'tool_activitydates_lock',
+                    (object) ['courseid' => $courseid, 'shownote' => 1, 'shownotecoursepage' => $option]
+                );
+                foreach ($cms as $cm) {
+                    $items[$cm->cmid] = $DB->insert_record('tool_activitydates_lockitem', (object) [
+                        'lockid' => $lockid,
+                        'cmid' => $cm->cmid,
+                        'shownote' => $cm === $unnoted ? 0 : 1,
+                    ]);
+                }
+            }
+
+            upgrade_helper::migrate_course_page_notes();
+
+            $flag = fn($cm) => (int) $DB->get_field(
+                'tool_activitydates_lockitem',
+                'shownotecoursepage',
+                ['id' => $items[$cm->cmid]]
+            );
+            $this->assertSame(1, $flag($noted));
+            $this->assertSame(0, $flag($unnoted));
+            $this->assertSame(0, $flag($othernoted));
+        } finally {
+            foreach ($fields as $field) {
+                $dbman->drop_field($table, $field);
+            }
+        }
+
+        // Without the old column (after the upgrade step drops it) this is a no-op.
+        upgrade_helper::migrate_course_page_notes();
+        $this->assertSame(1, $flag($noted));
+
+        // Behaviour is kept: the tool_timelocker contract and the course page itself.
+        $this->assertTrue(locknote::shows_note((int) $noted->cmid, true));
+        $this->assertFalse(locknote::shows_note((int) $unnoted->cmid, true));
+        $this->assertFalse(locknote::shows_note((int) $othernoted->cmid, true));
+        $this->assertTrue(locknote::shows_note((int) $othernoted->cmid, false));
+        $mgr = new \tool_activitydates\locks\manager();
+        $mgr->apply_locks([$noted->cmid => 2000000000, $unnoted->cmid => 2000000000], 'quiz', $course->id, false);
+        $this->setUser($student);
+        $this->assertSame(
+            [(int) $noted->cmid],
+            array_keys(locknote::course_page_notes($course->id))
+        );
+
+        // The schema is the new one.
+        $lockcolumns = $DB->get_columns('tool_activitydates_lock');
+        $this->assertArrayNotHasKey('shownote', $lockcolumns);
+        $this->assertArrayNotHasKey('shownotecoursepage', $lockcolumns);
+        $this->assertArrayHasKey('shownotecoursepage', $DB->get_columns('tool_activitydates_lockitem'));
+        $this->assertTrue($dbman->table_exists('tool_activitydates_fixed'));
+        $this->assertTrue($dbman->index_exists(
+            new \xmldb_table('tool_activitydates_fixed'),
+            new \xmldb_index('cmidfield', XMLDB_INDEX_UNIQUE, ['cmid', 'field'])
+        ));
     }
 }

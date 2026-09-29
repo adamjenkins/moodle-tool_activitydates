@@ -67,11 +67,12 @@ final class hook_callbacks_test extends \advanced_testcase {
 
         $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
             'courseid' => $course->id,
-            'shownote' => 0,
-            'shownotecoursepage' => 1,
             'resetunselected' => 0,
         ]);
-        $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $quiz->cmid, 'shownote' => 1]);
+        $DB->insert_record(
+            'tool_activitydates_lockitem',
+            (object) ['lockid' => $lockid, 'cmid' => $quiz->cmid, 'shownote' => 1, 'shownotecoursepage' => 1]
+        );
         $mgr = new manager();
         $mgr->apply_locks([$quiz->cmid => 2000000000 + 7 * DAYSECS], 'quiz', $course->id, false);
         $this->setAdminUser();

@@ -132,5 +132,41 @@ function xmldb_tool_activitydates_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026092901, 'tool', 'activitydates');
     }
 
+    if ($oldversion < 2026092902) {
+        // Fixed dates: the scheduler leaves these activity dates as the teacher set them.
+        $table = new xmldb_table('tool_activitydates_fixed');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('cmid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('field', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('fk_course', XMLDB_KEY_FOREIGN, ['courseid'], 'course', ['id']);
+        $table->add_index('cmidfield', XMLDB_INDEX_UNIQUE, ['cmid', 'field']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // The course-page note becomes a per-activity choice.
+        $table = new xmldb_table('tool_activitydates_lockitem');
+        $field = new xmldb_field('shownotecoursepage', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'shownote');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Items whose note showed on the course page keep showing it there.
+        \tool_activitydates\local\upgrade_helper::migrate_course_page_notes();
+
+        $table = new xmldb_table('tool_activitydates_lock');
+        foreach (['shownote', 'shownotecoursepage'] as $name) {
+            $field = new xmldb_field($name);
+            if ($dbman->field_exists($table, $field)) {
+                $dbman->drop_field($table, $field);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026092902, 'tool', 'activitydates');
+    }
+
     return true;
 }

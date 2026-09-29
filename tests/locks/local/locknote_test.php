@@ -55,21 +55,21 @@ final class locknote_test extends \advanced_testcase {
      * @param int $courseid The course ID.
      * @param array $cmids Course module IDs to select.
      * @param array $notecmids Course module IDs whose note is switched on.
-     * @param int $coursepage The shownotecoursepage value to save.
+     * @param int $coursepage The shownotecoursepage value to save on each item whose note is on.
      */
     private function configure(int $courseid, array $cmids, array $notecmids, int $coursepage): void {
         global $DB;
         $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
             'courseid' => $courseid,
-            'shownote' => 0,
-            'shownotecoursepage' => $coursepage,
             'resetunselected' => 0,
         ]);
         foreach ($cmids as $cmid) {
+            $noted = in_array($cmid, $notecmids);
             $DB->insert_record('tool_activitydates_lockitem', (object) [
                 'lockid' => $lockid,
                 'cmid' => $cmid,
-                'shownote' => in_array($cmid, $notecmids) ? 1 : 0,
+                'shownote' => $noted ? 1 : 0,
+                'shownotecoursepage' => $noted ? $coursepage : 0,
             ]);
         }
         $mgr = new \tool_activitydates\locks\manager();
@@ -165,7 +165,7 @@ final class locknote_test extends \advanced_testcase {
     }
 
     /**
-     * course_page_notes() is empty unless the course-page option is on.
+     * course_page_notes() is empty unless the items' course-page option is on.
      */
     public function test_course_page_notes_option_off(): void {
         $this->resetAfterTest();
@@ -190,6 +190,26 @@ final class locknote_test extends \advanced_testcase {
 
         $this->assertSame([(int) $cms[0]->id], array_keys($notes));
         $this->assertSame(['islocked' => false, 'time' => self::LOCKTIME], $notes[(int) $cms[0]->id]);
+    }
+
+    /**
+     * The course-page option is per activity: a noted activity without it stays off
+     * the course page, and the option alone, with the note off, shows nothing.
+     */
+    public function test_course_page_notes_per_item(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$course, $cms, $student] = $this->create_fixture();
+        $this->configure($course->id, [$cms[0]->id, $cms[1]->id, $cms[2]->id], [$cms[0]->id, $cms[1]->id], 1);
+        $DB->set_field('tool_activitydates_lockitem', 'shownotecoursepage', 0, ['cmid' => $cms[1]->id]);
+        $DB->set_field('tool_activitydates_lockitem', 'shownotecoursepage', 1, ['cmid' => $cms[2]->id]);
+        $this->setUser($student);
+
+        $this->assertSame([(int) $cms[0]->id], array_keys(locknote::course_page_notes($course->id)));
+        $this->assertTrue(locknote::shows_note((int) $cms[0]->id, true));
+        $this->assertFalse(locknote::shows_note((int) $cms[1]->id, true));
+        $this->assertTrue(locknote::shows_note((int) $cms[1]->id, false));
+        $this->assertFalse(locknote::shows_note((int) $cms[2]->id, true));
     }
 
     /**
@@ -252,19 +272,24 @@ final class locknote_test extends \advanced_testcase {
         global $DB;
         $this->resetAfterTest();
         [$course, $cms] = $this->create_fixture();
-        $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
-            'courseid' => $course->id, 'shownotecoursepage' => 0,
-        ]);
-        $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cms[0]->id, 'shownote' => 1]);
-        $DB->insert_record('tool_activitydates_lockitem', (object) ['lockid' => $lockid, 'cmid' => $cms[1]->id, 'shownote' => 0]);
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) ['courseid' => $course->id]);
+        $noteon = $DB->insert_record(
+            'tool_activitydates_lockitem',
+            (object) ['lockid' => $lockid, 'cmid' => $cms[0]->id, 'shownote' => 1, 'shownotecoursepage' => 0]
+        );
+        $noteoff = $DB->insert_record(
+            'tool_activitydates_lockitem',
+            (object) ['lockid' => $lockid, 'cmid' => $cms[1]->id, 'shownote' => 0, 'shownotecoursepage' => 0]
+        );
 
-        // Every placement x note row x course option: $cms[0] has its note on,
+        // Every placement x note row x course-page option: $cms[0] has its note on,
         // $cms[1] has it off, $cms[2] has no row. Only the note switched on shows,
-        // and on the course page only when the course option is on as well.
+        // and on the course page only when its own course-page option is on as well.
         foreach ([0, 1] as $coursepageoption) {
-            $DB->set_field('tool_activitydates_lock', 'shownotecoursepage', $coursepageoption, ['id' => $lockid]);
+            $DB->set_field('tool_activitydates_lockitem', 'shownotecoursepage', $coursepageoption, ['id' => $noteon]);
+            $DB->set_field('tool_activitydates_lockitem', 'shownotecoursepage', $coursepageoption, ['id' => $noteoff]);
             foreach ([false, true] as $coursepage) {
-                $where = ($coursepage ? 'course' : 'activity') . " page, course option $coursepageoption";
+                $where = ($coursepage ? 'course' : 'activity') . " page, course-page option $coursepageoption";
                 $this->assertSame(
                     !$coursepage || $coursepageoption === 1,
                     locknote::shows_note((int) $cms[0]->id, $coursepage),

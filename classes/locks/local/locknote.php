@@ -96,10 +96,9 @@ class locknote {
     /**
      * The note states to show on a course page, for the current user.
      *
-     * Empty unless the course has the course-page option on. Only activities
-     * whose note is switched on and which the current user sees listed on the
-     * course page are included, so nothing about a hidden or stealth activity
-     * reaches the page.
+     * Only activities whose note is switched on, also for the course page, and
+     * which the current user sees listed on the course page are included, so
+     * nothing about a hidden or stealth activity reaches the page.
      *
      * @param int $courseid The course ID.
      * @return array cmid => note state.
@@ -107,15 +106,13 @@ class locknote {
     public static function course_page_notes(int $courseid): array {
         global $CFG, $DB;
 
-        $config = $DB->get_record('tool_activitydates_lock', ['courseid' => $courseid], 'id, shownotecoursepage');
-        if (!$config || empty($config->shownotecoursepage)) {
-            return [];
-        }
-        $notecmids = $DB->get_fieldset_select(
-            'tool_activitydates_lockitem',
-            'cmid',
-            'lockid = :lockid AND shownote = 1',
-            ['lockid' => $config->id]
+        // Course-scoped, as in for_cm(): only items of this course's configuration row.
+        $notecmids = $DB->get_fieldset_sql(
+            "SELECT i.cmid
+               FROM {tool_activitydates_lockitem} i
+               JOIN {tool_activitydates_lock} t ON t.id = i.lockid
+              WHERE t.courseid = :courseid AND i.shownote = 1 AND i.shownotecoursepage = 1",
+            ['courseid' => $courseid]
         );
         if (!$notecmids) {
             return [];
@@ -176,7 +173,7 @@ class locknote {
                   JOIN {tool_activitydates_lock} l ON l.id = i.lockid
                  WHERE i.cmid = :cmid AND i.shownote = 1";
         if ($coursepage) {
-            $sql .= " AND l.shownotecoursepage = 1";
+            $sql .= " AND i.shownotecoursepage = 1";
         }
         return $DB->record_exists_sql($sql, ['cmid' => $cmid]);
     }

@@ -17,11 +17,12 @@
 namespace tool_activitydates\local;
 
 /**
- * One-off data conversions for the 2026092900 upgrade (stayavailable -> closemode) and
- * the 2026092901 upgrade (grade locks on the shared schedule).
+ * One-off data conversions for the 2026092900 upgrade (stayavailable -> closemode), the
+ * 2026092901 upgrade (grade locks on the shared schedule) and the 2026092902 upgrade
+ * (per-activity course-page notes).
  *
- * The upgrade steps (db/upgrade.php, 2026092900 and 2026092901) run this live code
- * against their own schema. Keep it to those columns, config names and literal values.
+ * The upgrade steps (db/upgrade.php, 2026092900, 2026092901 and 2026092902) run this live
+ * code against their own schema. Keep it to those columns, config names and literal values.
  *
  * @package    tool_activitydates
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -72,5 +73,27 @@ final class upgrade_helper {
                 set_config($name, $value, 'tool_activitydates');
             }
         }
+    }
+
+    /**
+     * Carry the course-wide course-page note option over to each noted activity.
+     *
+     * An item whose note is on, in a course whose tool_activitydates_lock row had
+     * shownotecoursepage = 1, gets its own shownotecoursepage = 1. Runs only while the
+     * old column still exists, so this is safe to call twice.
+     */
+    public static function migrate_course_page_notes(): void {
+        global $DB;
+        $dbman = $DB->get_manager();
+        $table = new \xmldb_table('tool_activitydates_lock');
+        if (!$dbman->field_exists($table, new \xmldb_field('shownotecoursepage'))) {
+            return;
+        }
+        $DB->execute(
+            "UPDATE {tool_activitydates_lockitem}
+                SET shownotecoursepage = 1
+              WHERE shownote = 1
+                AND lockid IN (SELECT id FROM {tool_activitydates_lock} WHERE shownotecoursepage = 1)"
+        );
     }
 }

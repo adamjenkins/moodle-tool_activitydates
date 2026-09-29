@@ -32,7 +32,8 @@ class observer {
      * Clean up this plugin's course-level rows when a course is deleted.
      *
      * Moodle does not cascade foreign keys, so both modes' configuration and
-     * selection rows would otherwise be orphaned. Children go first.
+     * selection rows, and the fixed-date flags, would otherwise be orphaned.
+     * Children go first.
      *
      * @param \core\event\course_deleted $event The course_deleted event.
      */
@@ -51,5 +52,6 @@ class observer {
             $params
         );
         $DB->delete_records('tool_activitydates_lock', $params);
+        $DB->delete_records('tool_activitydates_fixed', $params);
     }
 }
