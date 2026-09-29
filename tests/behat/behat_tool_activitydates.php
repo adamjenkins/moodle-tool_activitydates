@@ -28,6 +28,7 @@
 require_once(__DIR__ . '/../../../../../lib/behat/behat_base.php');
 
 use Behat\Mink\Exception\ExpectationException;
+use Moodle\BehatExtension\Exception\SkippedException;
 
 /**
  * Behat steps for tool_activitydates.
@@ -110,5 +111,177 @@ class behat_tool_activitydates extends behat_base {
 
         // Leave the error page so the after-step exception check sees a normal page.
         $this->getSession()->visit($this->locate_path('/'));
+    }
+
+    /**
+     * Skip the scenario when the activity type's table has no duedate column.
+     *
+     * Quiz gained a duedate column in Moodle 5.3; on earlier versions the due-date
+     * controls are not offered, so a due-date scenario cannot run.
+     *
+     * @Given /^the "(?P<modtype>[^"]*)" activity table has a due date column$/
+     *
+     * @param string $modtype The module type, e.g. 'quiz'.
+     * @throws SkippedException If the table has no duedate column.
+     */
+    public function the_activity_table_has_a_due_date_column(string $modtype): void {
+        global $DB;
+        if (!isset($DB->get_columns($modtype)['duedate'])) {
+            throw new SkippedException("The '{$modtype}' table has no duedate column on this Moodle version");
+        }
+    }
+
+    /**
+     * Check one date of an activity instance, read from the database.
+     *
+     * The value is compared as YYYY-MM-DDTHH:MM in the logged-in user's timezone,
+     * or "0" when the date is not set.
+     *
+     * @Then /^the "(?P<field>timeopen|duedate|timeclose)" of "(?P<idnumber>[^"]*)" should be "(?P<datetime>[^"]*)"$/
+     *
+     * @param string $field The instance field: timeopen, duedate or timeclose.
+     * @param string $idnumber The activity idnumber.
+     * @param string $datetime The expected value: YYYY-MM-DDTHH:MM, or 0 for none.
+     * @throws ExpectationException If the value differs.
+     */
+    public function the_activity_date_should_be(string $field, string $idnumber, string $datetime): void {
+        global $DB;
+        $cm = $this->get_cm_by_idnumber($idnumber);
+        if (!isset($DB->get_columns($cm->modname)[$field])) {
+            throw new ExpectationException("The '{$cm->modname}' table has no '{$field}' column", $this->getSession());
+        }
+        $time = (int) $DB->get_field($cm->modname, $field, ['id' => $cm->instance], MUST_EXIST);
+        $this->assert_timestamp($time, $datetime, "The {$field} of '{$idnumber}'");
+    }
+
+    /**
+     * Check the gradebook lock date of an activity's grade item, read from the database.
+     *
+     * @Then /^the grade lock date of "(?P<idnumber>[^"]*)" should be "(?P<datetime>[^"]*)"$/
+     *
+     * @param string $idnumber The activity idnumber.
+     * @param string $datetime The expected value: YYYY-MM-DDTHH:MM, or 0 for none.
+     * @throws ExpectationException If the value differs.
+     */
+    public function the_grade_lock_date_should_be(string $idnumber, string $datetime): void {
+        global $DB;
+        $cm = $this->get_cm_by_idnumber($idnumber);
+        $time = (int) $DB->get_field('grade_items', 'locktime', [
+            'courseid' => $cm->course,
+            'itemtype' => 'mod',
+            'itemmodule' => $cm->modname,
+            'iteminstance' => $cm->instance,
+            'itemnumber' => 0,
+        ], MUST_EXIST);
+        $this->assert_timestamp($time, $datetime, "The grade lock date of '{$idnumber}'");
+    }
+
+    /**
+     * Set one editable date in the preview table.
+     *
+     * The value is assigned by JavaScript and input/change events are dispatched,
+     * because typing into a datetime-local input depends on the browser's locale.
+     *
+     * @When /^I set the "(?P<field>[^"]*)" date of "(?P<activityname>[^"]*)" to "(?P<value>[^"]*)"$/
+     *
+     * @param string $field The date field: timeopen, duedate, timeclose or locktime.
+     * @param string $activityname The activity name shown in the table.
+     * @param string $value The value, YYYY-MM-DDTHH:MM, or empty.
+     * @throws ExpectationException If the row has no such input.
+     */
+    public function i_set_the_date_of_activity_to(string $field, string $activityname, string $value): void {
+        $input = $this->find_date_input($field, $activityname);
+        $this->execute_js_on_node($input, '{{ELEMENT}}.value = ' . json_encode($value) . ';' .
+            '{{ELEMENT}}.dispatchEvent(new Event("input", {bubbles: true}));' .
+            '{{ELEMENT}}.dispatchEvent(new Event("change", {bubbles: true}));');
+    }
+
+    /**
+     * Check the value of one editable date in the preview table.
+     *
+     * @Then /^the "(?P<field>[^"]*)" date input of "(?P<activityname>[^"]*)" should be "(?P<value>[^"]*)"$/
+     *
+     * @param string $field The date field: timeopen, duedate, timeclose or locktime.
+     * @param string $activityname The activity name shown in the table.
+     * @param string $value The expected value, YYYY-MM-DDTHH:MM, or empty.
+     * @throws ExpectationException If the value differs.
+     */
+    public function the_date_input_should_be(string $field, string $activityname, string $value): void {
+        $actual = (string) $this->find_date_input($field, $activityname)->getValue();
+        if ($actual !== $value) {
+            throw new ExpectationException(
+                "The {$field} input of '{$activityname}' is '{$actual}', expected '{$value}'",
+                $this->getSession()
+            );
+        }
+    }
+
+    /**
+     * Re-enable a button that the page's JavaScript disabled, to test the server-side check behind it.
+     *
+     * @When /^I remove the disabled attribute from the "(?P<button>[^"]*)" button$/
+     *
+     * @param string $button The button label.
+     */
+    public function i_remove_the_disabled_attribute_from_button(string $button): void {
+        $node = $this->find('button', $button);
+        $this->execute_js_on_node($node, '{{ELEMENT}}.disabled = false;');
+    }
+
+    /**
+     * Find a course module by idnumber.
+     *
+     * @param string $idnumber The activity idnumber.
+     * @return stdClass The course_modules record plus modname.
+     */
+    private function get_cm_by_idnumber(string $idnumber): stdClass {
+        global $DB;
+        return $DB->get_record_sql(
+            'SELECT cm.*, m.name AS modname
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.idnumber = :idnumber',
+            ['idnumber' => $idnumber],
+            MUST_EXIST
+        );
+    }
+
+    /**
+     * Compare a timestamp with an expected YYYY-MM-DDTHH:MM value in the logged-in user's timezone.
+     *
+     * @param int $time The timestamp, 0 for none.
+     * @param string $expected The expected value, or "0" for none.
+     * @param string $what What is compared, for the failure message.
+     * @throws ExpectationException If the values differ.
+     */
+    private function assert_timestamp(int $time, string $expected, string $what): void {
+        $timezone = core_date::get_user_timezone($this->get_session_user());
+        $actual = $time ? userdate($time, '%Y-%m-%dT%H:%M', $timezone, false, false) : '0';
+        if ($actual !== $expected) {
+            throw new ExpectationException("{$what} is '{$actual}', expected '{$expected}'", $this->getSession());
+        }
+    }
+
+    /**
+     * Find one editable date input in the preview table row of the named activity.
+     *
+     * @param string $field The date field: timeopen, duedate, timeclose or locktime.
+     * @param string $activityname The activity name shown in the table.
+     * @return \Behat\Mink\Element\NodeElement
+     * @throws ExpectationException If the row has no such input.
+     */
+    private function find_date_input(string $field, string $activityname): \Behat\Mink\Element\NodeElement {
+        $name = behat_context_helper::escape($activityname);
+        $fieldliteral = behat_context_helper::escape($field);
+        $xpath = "//div[@data-region='tool_activitydates-previewtable']//tr[.//a[normalize-space(.)={$name}]]" .
+            "//input[@type='datetime-local'][@data-field={$fieldliteral}]";
+        $input = $this->getSession()->getPage()->find('xpath', $xpath);
+        if (!$input) {
+            throw new ExpectationException(
+                "No editable {$field} date for '{$activityname}' in the preview table",
+                $this->getSession()
+            );
+        }
+        return $input;
     }
 }

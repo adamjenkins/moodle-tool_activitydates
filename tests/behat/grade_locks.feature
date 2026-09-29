@@ -35,6 +35,7 @@ Feature: Bulk-schedule gradebook lock dates
     And I set the field "sessionlength" to "7"
     And I set the field "activitiespersession" to "5"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
+    And I press "Preview"
     And I press "Save and display"
 
     Then I should see "Updated the gradebook lock date for 1 activities."
@@ -53,6 +54,7 @@ Feature: Bulk-schedule gradebook lock dates
     And I set the field "activitiespersession" to "5"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[last()]/input[@type='checkbox']" to "1"
+    And I press "Preview"
     And I press "Save and display"
     Then I should see "Updated the gradebook lock date for 1 activities."
     And I log out
@@ -73,6 +75,7 @@ Feature: Bulk-schedule gradebook lock dates
     And I set the field "Also show notes on the course page" to "1"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[last()]/input[@type='checkbox']" to "1"
+    And I press "Preview"
     And I press "Save and display"
     Then I should see "Updated the gradebook lock date for 1 activities."
     And I log out
@@ -95,6 +98,7 @@ Feature: Bulk-schedule gradebook lock dates
     And I set the field "Also show notes on the course page" to "1"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[last()]/input[@type='checkbox']" to "1"
+    And I press "Preview"
     And I press "Save and display"
     And I am on "Course 1" course homepage with editing mode on
     And I should see "Grades lock after" in the "Quiz1" "activity"
@@ -113,6 +117,7 @@ Feature: Bulk-schedule gradebook lock dates
     And I set the field "Also show notes on the course page" to "0"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
     And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[last()]/input[@type='checkbox']" to "1"
+    And I press "Preview"
     And I press "Save and display"
     Then I should see "Updated the gradebook lock date for 1 activities."
     And I log out
@@ -125,7 +130,7 @@ Feature: Bulk-schedule gradebook lock dates
     And I should see "Grades lock after"
 
   @javascript
-  Scenario: Changing the activity type refreshes the Grade locks table without pressing Refresh
+  Scenario: Changing the activity type refreshes the Grade locks table without pressing Preview
     Given the following "activities" exist:
       | activity | name    | course | idnumber |
       | assign   | Assign1 | C1     | assign1  |
@@ -135,3 +140,56 @@ Feature: Bulk-schedule gradebook lock dates
     When I set the field "modtype" to "Quiz"
     Then I should see "Quiz1" in the "table" "css_element"
     And I should not see "Assign1" in the "table" "css_element"
+
+  @javascript
+  Scenario: Preview fills the lock dates and writes nothing
+    Given I log in as "teacher1"
+    And I am on the "C1" "tool_activitydates > locks" page
+    And I set the field "schedulestart[day]" to "1"
+    And I set the field "schedulestart[month]" to "January"
+    And I set the field "schedulestart[year]" to "2030"
+    And I set the field "schedulestart[hour]" to "09"
+    And I set the field "schedulestart[minute]" to "00"
+    And I set the field "sessionlength" to "7"
+    And I set the field "activitiespersession" to "5"
+    And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
+    Then I should see "Settings changed. Press Preview to update the dates."
+    And the "Save and display" "button" should be disabled
+    When I press "Preview"
+    Then the "locktime" date input of "Quiz1" should be "2030-01-08T09:00"
+    And "Settings changed. Press Preview to update the dates." "text" should not be visible
+    And the grade lock date of "quiz1" should be "0"
+
+  @javascript
+  Scenario: An edited lock date is saved exactly
+    Given I log in as "teacher1"
+    And I am on the "C1" "tool_activitydates > locks" page
+    And I set the field "schedulestart[day]" to "1"
+    And I set the field "schedulestart[month]" to "January"
+    And I set the field "schedulestart[year]" to "2030"
+    And I set the field "schedulestart[hour]" to "09"
+    And I set the field "schedulestart[minute]" to "00"
+    And I set the field "sessionlength" to "7"
+    And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
+    And I press "Preview"
+    When I set the "locktime" date of "Quiz1" to "2030-02-01T12:15"
+    And I press "Save and display"
+    Then I should see "Updated the gradebook lock date for 1 activities."
+    And the grade lock date of "quiz1" should be "2030-02-01T12:15"
+
+  @javascript
+  Scenario: An empty lock date blocks Save
+    Given I log in as "teacher1"
+    And I am on the "C1" "tool_activitydates > locks" page
+    And I set the field "schedulestart[day]" to "1"
+    And I set the field "schedulestart[month]" to "January"
+    And I set the field "schedulestart[year]" to "2030"
+    And I set the field with xpath "//tr[contains(normalize-space(.), 'Quiz1')][1]/td[1]/input[@type='checkbox']" to "1"
+    And I press "Preview"
+    When I set the "locktime" date of "Quiz1" to ""
+    Then I should see "Enter a lock date." in the "Quiz1" "table_row"
+    And I press "Save and display"
+    Then I should see "Nothing was saved: 1 date(s) need correcting"
+    And I should see "Enter a lock date." in the "Quiz1" "table_row"
+    And the "locktime" date input of "Quiz1" should be ""
+    And the grade lock date of "quiz1" should be "0"

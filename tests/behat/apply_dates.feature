@@ -37,26 +37,37 @@ Feature: Bulk-schedule activity dates
     And the "Activity type" select box should not contain "Assignments"
 
     # Choices sorts before Quizzes alphabetically and so may be the default
-    # activity type; select Quizzes explicitly and refresh the table.
+    # activity type; select Quizzes explicitly and preview the table.
     And I set the field "Activity type" to "Quizzes"
-    And I press "Refresh"
+    And I press "Preview"
 
     And I set the field "schedulestart[day]" to "1"
     And I set the field "schedulestart[month]" to "January"
     And I set the field "schedulestart[year]" to "2030"
+    And I set the field "schedulestart[hour]" to "09"
+    And I set the field "schedulestart[minute]" to "00"
     And I set the field "schedulefinish[day]" to "15"
     And I set the field "schedulefinish[month]" to "January"
     And I set the field "schedulefinish[year]" to "2030"
     And I set the field "sessionlength" to "7"
     And I set the field "activitiespersession" to "2"
+    And I set the field "Close dates" to "At the end of this session"
 
+    # Changed settings disable Save until the table is previewed again.
     And I click on "selectall" "checkbox"
+    And the "Save and display" "button" should be disabled
+    And I press "Preview"
     And I press "Save and display"
 
     # Session 1 = Quiz1 + Quiz2 starting 1 Jan 2030.
     # Session 2 = Quiz3 + Quiz4 starting 8 Jan 2030 (sessionlength=7).
     Then I should see "1 Jan 2030" in the "Quiz1" "table_row"
     And I should see "8 Jan 2030" in the "Quiz3" "table_row"
+    # A session ends when the next one opens: its activities close then.
+    And the "timeopen" of "quiz1" should be "2030-01-01T09:00"
+    And the "timeclose" of "quiz1" should be "2030-01-08T09:00"
+    And the "timeopen" of "quiz3" should be "2030-01-08T09:00"
+    And the "timeclose" of "quiz3" should be "2030-01-15T09:00"
 
     # Confirm the write landed in the quiz's own settings, not just this
     # plugin's table.
@@ -68,7 +79,7 @@ Feature: Bulk-schedule activity dates
     And I am on "Course 1" course homepage with editing mode on
     And I navigate to "Activity dates" in current page administration
     And I set the field "Activity type" to "Quizzes"
-    And I press "Refresh"
+    And I press "Preview"
 
     # sessionlength must be >= 1: the client-side required rule blocks an
     # empty value before the form can even be submitted.
@@ -78,6 +89,7 @@ Feature: Bulk-schedule activity dates
 
     # activitiespersession must be <= count($modules): there are only 4
     # eligible quizzes, so 100 must be rejected by server-side validation.
+    # The changed setting disables Save; Preview validates the settings too.
     And I set the field "activitiespersession" to "100"
-    And I press "Save and display"
+    And I press "Preview"
     Then I should see "Activities per session is 100 but the course only has 4 eligible activities"
