@@ -52,11 +52,45 @@ if ($hassiteconfig) {
         3
     ));
 
-    $settings->add(new admin_setting_configcheckbox(
-        'tool_activitydates/stayavailable',
-        get_string('stayavailable', 'tool_activitydates'),
-        get_string('stayavailable_help', 'tool_activitydates'),
-        0
+    $modes = [
+        'days' => get_string('mode_days', 'tool_activitydates'),
+        'session' => get_string('mode_session', 'tool_activitydates'),
+        'date' => get_string('mode_date', 'tool_activitydates'),
+        'none' => get_string('mode_none', 'tool_activitydates'),
+    ];
+
+    $settings->add(new admin_setting_configselect(
+        'tool_activitydates/closemode',
+        get_string('closemode', 'tool_activitydates'),
+        get_string('configclosemode', 'tool_activitydates'),
+        'session',
+        $modes
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_activitydates/closedays',
+        get_string('closedays', 'tool_activitydates'),
+        '',
+        '7',
+        PARAM_INT,
+        3
+    ));
+
+    $settings->add(new admin_setting_configselect(
+        'tool_activitydates/duemode',
+        get_string('duemode', 'tool_activitydates'),
+        get_string('configduemode', 'tool_activitydates'),
+        'none',
+        $modes
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_activitydates/duedays',
+        get_string('duedays', 'tool_activitydates'),
+        '',
+        '7',
+        PARAM_INT,
+        3
     ));
 
     $settings->add(new admin_setting_configcheckbox(

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="admin/tool/activitydates/db" VERSION="2026092600" COMMENT="XMLDB file for Moodle tool_activitydates"
+<XMLDB PATH="admin/tool/activitydates/db" VERSION="2026092900" COMMENT="XMLDB file for Moodle tool_activitydates"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd">
   <TABLES>
@@ -12,9 +12,15 @@
         <FIELD NAME="schedulefinish" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp when scheduling ends"/>
         <FIELD NAME="sessionlength" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="1" SEQUENCE="false" COMMENT="Number of days per session"/>
         <FIELD NAME="activitiespersession" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Number of activities to schedule per session"/>
-        <FIELD NAME="stayavailable" TYPE="int" LENGTH="1" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Whether activities remain available after scheduled end"/>
         <FIELD NAME="hideunselected" TYPE="int" LENGTH="1" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Whether to hide unselected activities"/>
         <FIELD NAME="resetunselected" TYPE="int" LENGTH="1" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Whether to reset availability for unselected activities"/>
+        <FIELD NAME="finishenabled" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Whether the schedule finish date caps the sessions scheduled"/>
+        <FIELD NAME="closemode" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="session" SEQUENCE="false" COMMENT="How close dates are set: days, session, date or none"/>
+        <FIELD NAME="closedays" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="7" SEQUENCE="false" COMMENT="Days from the open date to the close date in days mode"/>
+        <FIELD NAME="closedate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp of the common close date in date mode"/>
+        <FIELD NAME="duemode" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="none" SEQUENCE="false" COMMENT="How due dates are set: days, session, date or none"/>
+        <FIELD NAME="duedays" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="7" SEQUENCE="false" COMMENT="Days from the open date to the due date in days mode"/>
+        <FIELD NAME="duedate" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp of the common due date in date mode"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp of last modification"/>
       </FIELDS>
       <KEYS>
