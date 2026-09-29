@@ -30,6 +30,8 @@ Feature: The Activity dates page shows and saves only what the user may change
     And I should not see "Grade locks" in the "region-main" "region"
     And "Lock grades" "field" should not exist
     And I should not see "Locked" in the "region-main" "region"
+    And I should not see "Grade-lock note" in the "region-main" "region"
+    And "//input[starts-with(@id, 'tool_activitydates_fix_timelock_')]" "xpath_element" should not exist
 
   @javascript
   Scenario: A teacher with only managelocks sees no date settings and can save a lock
@@ -53,8 +55,11 @@ Feature: The Activity dates page shows and saves only what the user may change
       | Lock grades           | At the end of this session |
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_cmid_')]" to "1"
     And I press "Preview"
-    # Open and close are shown read-only: only the lock date is an input.
-    And "//tr[.//a[normalize-space(.)='Quiz1']]//input[@data-field='timeopen']" "xpath_element" should not exist
+    # Open and close are shown disabled, with no Fix box to tick: only the lock date is editable.
+    And the "//tr[.//a[normalize-space(.)='Quiz1']]//input[@data-field='timeopen']" "xpath_element" should be disabled
+    And the "//tr[.//a[normalize-space(.)='Quiz1']]//input[@data-field='timeclose']" "xpath_element" should be disabled
+    And the "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'tool_activitydates_fix_timeopen_')]" "xpath_element" should be disabled
+    And the "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'tool_activitydates_fix_timelock_')]" "xpath_element" should be enabled
     And the "timelock" date input of "Quiz1" should be "2030-01-08T09:00"
     And I press "Save and display"
     Then I should see "Updated the gradebook lock date for 1 activities."

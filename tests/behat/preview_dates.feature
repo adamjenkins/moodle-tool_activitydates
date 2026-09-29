@@ -180,3 +180,43 @@ Feature: Preview and edit activity dates before saving
     And I press "Save and display"
     Then I should see "Updated dates for 3 of"
     And I should not see "Nothing was saved"
+
+  Scenario: The table loads with the current dates, and an unset date is empty
+    Given I set the "timeclose" date of "Quiz2" to ""
+    And I press "Save and display"
+    And I should see "Updated dates for 4 of"
+    And the "timeclose" of "quiz2" should be "0"
+    When I am on the "C1" "tool_activitydates > dates" page
+    # The proposal for Quiz2's close is 8 Jan; the table shows the current, unset value.
+    Then the "timeclose" date input of "Quiz2" should be ""
+    And the "timeopen" date input of "Quiz2" should be "2030-01-01T09:00"
+    And the "timeopen" date input of "Quiz1" should be "2030-01-01T09:00"
+    And the "timeclose" date input of "Quiz1" should be "2030-01-08T09:00"
+    And the "timeopen" date input of "Quiz3" should be "2030-01-08T09:00"
+
+  Scenario: A fixed date is kept through Preview and saved with its Fix flag
+    # Quiz3 is in session 2, so its open date moves when the session length changes.
+    When I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz3']]//input[starts-with(@id, 'tool_activitydates_fix_timeclose_')]" to "1"
+    # Ticking Fix does not make the table stale.
+    Then "Settings changed. Press Preview to update the dates." "text" should not be visible
+    And I set the field "sessionlength" to "3"
+    And I press "Preview"
+    And the "timeopen" date input of "Quiz3" should be "2030-01-04T09:00"
+    And the "timeclose" date input of "Quiz3" should be "2030-01-15T09:00"
+    And the "timeclose" date input of "Quiz1" should be "2030-01-04T09:00"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz3']]//input[starts-with(@id, 'tool_activitydates_fix_timeclose_')]" matches value "1"
+    And I press "Save and display"
+    And I should see "Updated dates for 4 of"
+    And the "timeopen" of "quiz3" should be "2030-01-04T09:00"
+    And the "timeclose" of "quiz3" should be "2030-01-15T09:00"
+    And the "timeclose" of "quiz1" should be "2030-01-04T09:00"
+    When I am on the "C1" "tool_activitydates > dates" page
+    Then the field with xpath "//tr[.//a[normalize-space(.)='Quiz3']]//input[starts-with(@id, 'tool_activitydates_fix_timeclose_')]" matches value "1"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz3']]//input[starts-with(@id, 'tool_activitydates_fix_timeopen_')]" matches value "0"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'tool_activitydates_fix_timeclose_')]" matches value "0"
+    And the "timeclose" date input of "Quiz3" should be "2030-01-15T09:00"
+    # A later Preview with other settings still keeps the fixed close.
+    And I set the field "sessionlength" to "5"
+    And I press "Preview"
+    And the "timeopen" date input of "Quiz3" should be "2030-01-06T09:00"
+    And the "timeclose" date input of "Quiz3" should be "2030-01-15T09:00"

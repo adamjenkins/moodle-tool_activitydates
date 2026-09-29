@@ -65,19 +65,19 @@ Feature: Schedule gradebook lock dates on the Activity dates page
     And I am on the "Quiz1" "quiz activity" page
     Then I should see "Grades lock after"
 
-  Scenario: Student sees the grade-lock note on the course page when the course opts in
+  Scenario: Student sees the grade-lock note on the course page when its Course page box is ticked
     Given I log in as "teacher1"
     And I am on the "C1" "tool_activitydates > dates" page
     And I expand all fieldsets
     And I set the following fields to these values:
-      | schedulestart[day]                 | 1                          |
-      | schedulestart[month]               | January                    |
-      | schedulestart[year]                | 2030                       |
-      | activitiespersession               | 1                          |
-      | Lock grades                        | At the end of this session |
-      | Also show notes on the course page | 1                          |
+      | schedulestart[day]   | 1                          |
+      | schedulestart[month] | January                    |
+      | schedulestart[year]  | 2030                       |
+      | activitiespersession | 1                          |
+      | Lock grades          | At the end of this session |
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_cmid_')]" to "1"
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownote_')]" to "1"
+    And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownotecourse_')]" to "1"
     And I press "Preview"
     And I press "Save and display"
     Then I should see "Updated the gradebook lock date for 1 activities."
@@ -94,14 +94,14 @@ Feature: Schedule gradebook lock dates on the Activity dates page
     And I am on the "C1" "tool_activitydates > dates" page
     And I expand all fieldsets
     And I set the following fields to these values:
-      | schedulestart[day]                 | 1                          |
-      | schedulestart[month]               | January                    |
-      | schedulestart[year]                | 2030                       |
-      | activitiespersession               | 1                          |
-      | Lock grades                        | At the end of this session |
-      | Also show notes on the course page | 1                          |
+      | schedulestart[day]   | 1                          |
+      | schedulestart[month] | January                    |
+      | schedulestart[year]  | 2030                       |
+      | activitiespersession | 1                          |
+      | Lock grades          | At the end of this session |
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_cmid_')]" to "1"
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownote_')]" to "1"
+    And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownotecourse_')]" to "1"
     And I press "Preview"
     And I press "Save and display"
     And I am on "Course 1" course homepage with editing mode on
@@ -109,19 +109,19 @@ Feature: Schedule gradebook lock dates on the Activity dates page
     When I indent right "Quiz1" activity
     Then I should see "Grades lock after" in the "Quiz1" "activity"
 
-  Scenario: The course page shows no grade-lock note when the course has not opted in
+  Scenario: The course page shows no grade-lock note when the Course page box is not ticked
     Given I log in as "teacher1"
     And I am on the "C1" "tool_activitydates > dates" page
     And I expand all fieldsets
     And I set the following fields to these values:
-      | schedulestart[day]                 | 1                          |
-      | schedulestart[month]               | January                    |
-      | schedulestart[year]                | 2030                       |
-      | activitiespersession               | 1                          |
-      | Lock grades                        | At the end of this session |
-      | Also show notes on the course page | 0                          |
+      | schedulestart[day]   | 1                          |
+      | schedulestart[month] | January                    |
+      | schedulestart[year]  | 2030                       |
+      | activitiespersession | 1                          |
+      | Lock grades          | At the end of this session |
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_cmid_')]" to "1"
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownote_')]" to "1"
+    And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownotecourse_')]" to "0"
     And I press "Preview"
     And I press "Save and display"
     Then I should see "Updated the gradebook lock date for 1 activities."
@@ -239,8 +239,9 @@ Feature: Schedule gradebook lock dates on the Activity dates page
     When I set the field "Lock grades" to "No lock"
     And I set the field "sessionlength" to "3"
     And I press "Preview"
-    # The Locked cell is read-only while the lock mode is No lock.
-    Then "//tr[.//a[normalize-space(.)='Quiz1']]//input[@data-field='timelock']" "xpath_element" should not exist
+    # The Locked input is disabled while the lock mode is No lock, and shows the current lock.
+    Then the "//tr[.//a[normalize-space(.)='Quiz1']]//input[@data-field='timelock']" "xpath_element" should be disabled
+    And the "timelock" date input of "Quiz1" should be "2030-01-08T09:00"
     And I press "Save and display"
     And I should see "Updated dates for 1 of"
     And I should not see "Updated the gradebook lock date"
@@ -295,3 +296,74 @@ Feature: Schedule gradebook lock dates on the Activity dates page
     And I should see "Updated the gradebook lock date for 1 activities."
     And I should not see "Updated dates for"
     And the grade lock date of "assign1" should be "2030-01-08T09:00"
+
+  Scenario: The course-page note shows only on the activities ticked for it
+    Given the following "activities" exist:
+      | activity | name  | course | idnumber | completion |
+      | quiz     | Quiz2 | C1     | quiz2    | 1          |
+    And I log in as "teacher1"
+    And I am on the "C1" "tool_activitydates > dates" page
+    And I expand all fieldsets
+    And I set the following fields to these values:
+      | schedulestart[day]   | 1                          |
+      | schedulestart[month] | January                    |
+      | schedulestart[year]  | 2030                       |
+      | activitiespersession | 1                          |
+      | Lock grades          | At the end of this session |
+    And I click on "selectall" "checkbox"
+    # The header box ticks the activity-page note of every selected row.
+    And I click on "#id_togglenotes" "css_element"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownote_')]" matches value "1"
+    And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownotecourse_')]" to "1"
+    And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownotecourse_')]" to "0"
+    And I press "Preview"
+    And I press "Save and display"
+    Then I should see "Updated the gradebook lock date for 2 activities."
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownotecourse_')]" matches value "1"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownotecourse_')]" matches value "0"
+    And I log out
+
+    When I log in as "student1"
+    And I am on "Course 1" course homepage
+    Then I should see "Grades lock after" in the "Quiz1" "activity"
+    And I should not see "Grades lock after" in the "Quiz2" "activity"
+    # Quiz2's activity-page note is still on.
+    And I am on the "Quiz2" "quiz activity" page
+    And I should see "Grades lock after"
+
+  Scenario: Save straight after load changes no date, lock or Fix flag
+    Given I log in as "teacher1"
+    And I am on the "C1" "tool_activitydates > dates" page
+    And I expand all fieldsets
+    And I set the following fields to these values:
+      | schedulestart[day]    | 1                          |
+      | schedulestart[month]  | January                    |
+      | schedulestart[year]   | 2030                       |
+      | schedulestart[hour]   | 09                         |
+      | schedulestart[minute] | 00                         |
+      | sessionlength         | 7                          |
+      | activitiespersession  | 1                          |
+      | Close dates           | At the end of this session |
+      | Lock grades           | At the end of this session |
+    And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_cmid_')]" to "1"
+    And I press "Preview"
+    # Values that differ from the proposals, so a Save of the proposals would change them.
+    And I set the "timeopen" date of "Quiz1" to "2030-01-03T10:30"
+    And I set the "timelock" date of "Quiz1" to "2030-02-01T12:15"
+    And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'tool_activitydates_fix_timelock_')]" to "1"
+    And I press "Save and display"
+    And the "timeopen" of "quiz1" should be "2030-01-03T10:30"
+    And the "timeclose" of "quiz1" should be "2030-01-08T09:00"
+    And the grade lock date of "quiz1" should be "2030-02-01T12:15"
+    When I am on the "C1" "tool_activitydates > dates" page
+    # The table shows the current values, not the proposals.
+    Then the "timeopen" date input of "Quiz1" should be "2030-01-03T10:30"
+    And the "timelock" date input of "Quiz1" should be "2030-02-01T12:15"
+    And I press "Save and display"
+    And I should see "Updated the gradebook lock date for 1 activities."
+    And I should not see "Nothing was saved"
+    And the "timeopen" of "quiz1" should be "2030-01-03T10:30"
+    And the "timeclose" of "quiz1" should be "2030-01-08T09:00"
+    And the grade lock date of "quiz1" should be "2030-02-01T12:15"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'tool_activitydates_fix_timelock_')]" matches value "1"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'tool_activitydates_fix_timeopen_')]" matches value "0"

@@ -63,8 +63,9 @@ Feature: Bulk-schedule activity dates
 
     # Session 1 = Quiz1 + Quiz2 starting 1 Jan 2030.
     # Session 2 = Quiz3 + Quiz4 starting 8 Jan 2030 (sessionlength=7).
-    Then I should see "1 Jan 2030" in the "Quiz1" "table_row"
-    And I should see "8 Jan 2030" in the "Quiz3" "table_row"
+    # After Save the table shows the saved (current) dates.
+    Then the "timeopen" date input of "Quiz1" should be "2030-01-01T09:00"
+    And the "timeopen" date input of "Quiz3" should be "2030-01-08T09:00"
     # A session ends when the next one opens: its activities close then.
     And the "timeopen" of "quiz1" should be "2030-01-01T09:00"
     And the "timeclose" of "quiz1" should be "2030-01-08T09:00"
@@ -81,6 +82,15 @@ Feature: Bulk-schedule activity dates
     When I am on the "C1" "tool_activitydates > dates" page
     Then the field "schedulefinish[enabled]" matches value "0"
     And the "schedulefinish[day]" "field" should be disabled
+
+  Scenario: The Save buttons are visible without expanding Advanced
+    Given I log in as "teacher1"
+    When I am on the "C1" "tool_activitydates > dates" page
+    # Advanced is collapsed on load; the buttons sit after it, outside every section.
+    Then "Hide unselected" "field" should not be visible
+    And "Save and display" "button" should be visible
+    And "Save and return to course" "button" should be visible
+    And "Cancel" "button" should be visible
 
   Scenario: Validation errors when scheduling activities
     Given I log in as "teacher1"
