@@ -111,6 +111,8 @@ class activitydates {
     ): array {
         $context = \context_course::instance($courseid);
         $result = ['dates' => 0, 'locks' => 0];
+        // Read before update() rewrites the dates selection.
+        $keeplocks = $canmanage && $canlocks ? self::lock_only_cmids($courseid, $tabledata) : [];
 
         if ($canmanage) {
             [, $settings] = $this->update($fromform, $courseid);
@@ -122,7 +124,7 @@ class activitydates {
 
         if ($canlocks) {
             $settings = self::settings_from_form($fromform, $courseid, 0);
-            $this->save_lock_config($settings, $courseid, $tabledata, $shownotecmids, $shownotecoursecmids);
+            $this->save_lock_config($settings, $courseid, $tabledata, $shownotecmids, $shownotecoursecmids, $keeplocks);
 
             $lockdates = [];
             foreach ($tabledata as $row) {
@@ -130,6 +132,9 @@ class activitydates {
                     continue;
                 }
                 $cmid = (int) $row['id'];
+                if (isset($keeplocks[$cmid])) {
+                    continue;
+                }
                 if ($row['selected'] === 'checked') {
                     // Lock mode none leaves the existing locks alone.
                     if ($settings->lockmode !== local\schedule::MODE_NONE && $row['scheduled'] && isset($values[$cmid])) {
@@ -154,6 +159,50 @@ class activitydates {
         // A lock-only type has no open, due or close date to fix.
         $this->save_fixed($courseid, $selectedcmids, $fixposted, $canmanage && $hasdates, $canlocks);
         return $result;
+    }
+
+    /**
+     * The unticked rows that are in the lock selection but not in the dates selection.
+     *
+     * A user with :manage sees the ticks of the dates selection (view.php), so such a
+     * row was shown unticked without the user unticking it: the two selections were
+     * saved apart (a 2.0 course, or a Save by a user with :managelocks only). Save keeps
+     * its lock selection, notes and lock date. Unticking a row the page showed ticked
+     * still removes it from both selections.
+     *
+     * @param int $courseid the course ID.
+     * @param array $tabledata rows from get_table_data(), with the posted selection.
+     * @return array cmid => true.
+     */
+    private static function lock_only_cmids(int $courseid, array $tabledata): array {
+        global $DB;
+        $lockcmids = $DB->get_fieldset_sql(
+            "SELECT i.cmid
+               FROM {tool_activitydates_lockitem} i
+               JOIN {tool_activitydates_lock} l ON l.id = i.lockid
+              WHERE l.courseid = :courseid",
+            ['courseid' => $courseid]
+        );
+        if (!$lockcmids) {
+            return [];
+        }
+        $lockcmids = array_fill_keys(array_map('intval', $lockcmids), true);
+        $datescmids = $DB->get_fieldset_sql(
+            "SELECT c.coursemoduleid
+               FROM {tool_activitydates_cmids} c
+               JOIN {tool_activitydates} a ON a.id = c.activitydates
+              WHERE a.courseid = :courseid",
+            ['courseid' => $courseid]
+        );
+        $datescmids = array_fill_keys(array_map('intval', $datescmids), true);
+        $keep = [];
+        foreach ($tabledata as $row) {
+            $cmid = (int) ($row['id'] ?? 0);
+            if (!$row['isheader'] && $row['selected'] !== 'checked' && isset($lockcmids[$cmid]) && !isset($datescmids[$cmid])) {
+                $keep[$cmid] = true;
+            }
+        }
+        return $keep;
     }
 
     /**
@@ -247,13 +296,15 @@ class activitydates {
      * @param array $tabledata rows from get_table_data().
      * @param int[] $shownotecmids the cmids whose lock note is ticked for the activity page.
      * @param int[] $shownotecoursecmids the cmids whose lock note is ticked for the course page.
+     * @param array $keeplocks cmid => true: unticked rows whose lock selection is kept (see lock_only_cmids()).
      */
     private function save_lock_config(
         \stdClass $settings,
         int $courseid,
         array $tabledata,
         array $shownotecmids,
-        array $shownotecoursecmids
+        array $shownotecoursecmids,
+        array $keeplocks
     ): void {
         global $DB;
         $notes = array_fill_keys(array_map('intval', $shownotecmids), true);
@@ -279,7 +330,7 @@ class activitydates {
         $tablecmids = [];
         $selected = [];
         foreach ($tabledata as $row) {
-            if ($row['isheader']) {
+            if ($row['isheader'] || isset($keeplocks[(int) $row['id']])) {
                 continue;
             }
             $tablecmids[] = (int) $row['id'];

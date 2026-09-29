@@ -1365,6 +1365,63 @@ final class activitydates_test extends \advanced_testcase {
     }
 
     /**
+     * Load the page as a user with both capabilities, post back exactly what it shows
+     * (the enabled inputs, and the ticked, enabled Fix and note checkboxes), and save.
+     *
+     * @param int $courseid the course id.
+     * @param activitydates $manager the manager.
+     * @return array the save() result.
+     */
+    private function save_as_loaded(int $courseid, activitydates $manager): array {
+        $tz = \core_date::get_user_timezone_object();
+        $settings = activitydates::load_settings($courseid, 'quiz');
+        $validcmids = array_map('intval', array_keys(activitydates::get_modules($settings)));
+        $selected = activitydates::saved_selection((int) $settings->id, $validcmids);
+        $tabledata = $manager->get_table_data($settings, $selected);
+        $hasdue = activitydates::has_duedate('quiz');
+        $haslocks = $settings->lockmode !== local\schedule::MODE_NONE;
+        $editable = ['timeopen' => true, 'duedate' => $hasdue, 'timeclose' => true, 'timelock' => $haslocks];
+        $rendered = output\preview_rows::dates($tabledata, $tz, [
+            'fields' => $hasdue ? activitydates::FIELDS : ['timeopen', 'timeclose', 'timelock'],
+            'editable' => $editable,
+            'fixable' => ['timeopen' => true, 'duedate' => $hasdue, 'timeclose' => true, 'timelock' => true],
+        ]);
+        $inputs = [];
+        $fixposted = [];
+        $allowed = [];
+        $notes = [];
+        $coursenotes = [];
+        foreach ($rendered as $row) {
+            if ($row['isheader']) {
+                continue;
+            }
+            $cmid = (int) $row['id'];
+            if ($row['editable']) {
+                $allowed[$cmid] = true;
+            }
+            foreach ($row['fields'] as $entry) {
+                if (!$entry['disabled']) {
+                    $inputs[$entry['field']][$cmid] = $entry['value'];
+                }
+                if (!$entry['fixdisabled'] && $entry['fixed']) {
+                    $fixposted[$entry['field']][$cmid] = 1;
+                }
+            }
+            if (!$row['notedisabled'] && $row['shownote']) {
+                $notes[] = $cmid;
+            }
+            if (!$row['notedisabled'] && $row['shownotecoursepage']) {
+                $coursenotes[] = $cmid;
+            }
+        }
+        [$values, $errors] = local\datefields::validate_dates($inputs, $allowed, $hasdue, $haslocks, $tz);
+        $this->assertSame([], $errors);
+        $ticks = array_fill_keys(array_map(fn($cmid) => 'activity_' . $cmid, $selected), 1);
+        $fromform = (object) (['activitygroup' => $ticks] + (array) $settings);
+        return $manager->save($fromform, $courseid, $tabledata, $values, $notes, $coursenotes, $fixposted, true, true, true);
+    }
+
+    /**
      * Save straight after load writes back the current values: the dates, locks,
      * notes and Fix flags are unchanged, and an unset date is posted empty.
      */
@@ -1439,9 +1496,10 @@ final class activitydates_test extends \advanced_testcase {
         $tz = \core_date::get_user_timezone_object();
         $settings = activitydates::load_settings($course->id, 'quiz');
         $validcmids = array_map('intval', array_keys(activitydates::get_modules($settings)));
-        $selected = activitydates::saved_selection((int) $settings->id, $validcmids);
-        $tabledata = $manager->get_table_data($settings, $selected);
-        $rows = array_values(array_filter($tabledata, fn($row) => !$row['isheader']));
+        $rows = array_values(array_filter(
+            $manager->get_table_data($settings, activitydates::saved_selection((int) $settings->id, $validcmids)),
+            fn($row) => !$row['isheader']
+        ));
         $this->assertSame([
             'timeopen' => strtotime('2029-03-01 09:00'),
             'duedate' => $hasdue ? 0 : null,
@@ -1453,29 +1511,94 @@ final class activitydates_test extends \advanced_testcase {
             $rows[2]['current']
         );
         $this->assertSame('', local\datefields::to_input($rows[2]['current']['timeclose'], $tz));
-        $inputs = [];
-        $fixposted = [];
-        $allowed = [];
-        foreach ($rows as $row) {
-            $cmid = (int) $row['id'];
-            $allowed[$cmid] = true;
-            foreach ($row['current'] as $field => $value) {
-                $inputs[$field][$cmid] = local\datefields::to_input((int) $value, $tz);
-                if ($row['fixed'][$field]) {
-                    $fixposted[$field][$cmid] = 1;
-                }
-            }
-        }
-        [$values, $errors] = local\datefields::validate_dates($inputs, $allowed, $hasdue, true, $tz);
-        $this->assertSame([], $errors);
-        $notes = array_map(fn($row) => (int) $row['id'], array_filter($rows, fn($row) => $row['shownote']));
-        $coursenotes = array_map(fn($row) => (int) $row['id'], array_filter($rows, fn($row) => $row['shownotecoursepage']));
-        $fromform = (object) (['activitygroup' => $this->ticks([$quiz1, $quiz2, $quiz3])] + (array) $settings);
 
-        $result = $manager->save($fromform, $course->id, $tabledata, $values, $notes, $coursenotes, $fixposted, true, true, true);
+        $result = $this->save_as_loaded($course->id, $manager);
 
         $this->assertSame(['dates' => 3, 'locks' => 3], $result);
         $this->assertEquals($before, $snapshot());
+    }
+
+    /**
+     * Save straight after load keeps the lock selection of an activity that is in the
+     * lock store only (as a 2.0 course can have it after the upgrade): the page shows
+     * it unticked because its ticks come from the dates store, so Save must neither
+     * drop its lock row and notes nor clear its lock, even with "reset unselected".
+     */
+    public function test_save_after_load_keeps_lock_only_selection(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$course, [$quiz1, $quiz2, $quiz3]] = $this->graded_quizzes(3);
+        $manager = new activitydates();
+        // The dates store: quiz1 and quiz3.
+        $manager->update($this->fromform(['activitygroup' => $this->ticks([$quiz1, $quiz3])]), $course->id);
+        // The lock store: quiz1 and quiz2, clearing the locks of unselected activities.
+        $lockid = $DB->insert_record('tool_activitydates_lock', (object) [
+            'courseid' => $course->id,
+            'lockmode' => 'none',
+            'resetunselected' => 1,
+        ]);
+        foreach ([[$quiz1, 1, 0], [$quiz2, 1, 1]] as [$quiz, $shownote, $coursepage]) {
+            $DB->insert_record('tool_activitydates_lockitem', (object) [
+                'lockid' => $lockid,
+                'cmid' => $quiz->cmid,
+                'shownote' => $shownote,
+                'shownotecoursepage' => $coursepage,
+            ]);
+        }
+        $locked = strtotime('2029-05-01 12:00');
+        (new locks\manager())->apply_locks([$quiz2->cmid => $locked], 'quiz', $course->id, false);
+
+        $this->save_as_loaded($course->id, $manager);
+
+        // Quiz2 keeps its lock, its lock row and both notes.
+        $this->assertSame($locked, $this->locktime($course->id, 'quiz', $quiz2->id));
+        $item = $DB->get_record('tool_activitydates_lockitem', ['lockid' => $lockid, 'cmid' => $quiz2->cmid]);
+        $this->assertNotFalse($item);
+        $this->assertSame([1, 1], [(int) $item->shownote, (int) $item->shownotecoursepage]);
+        $this->assertTrue(locks\local\locknote::shows_note((int) $quiz2->cmid, true));
+        // Quiz1 keeps its notes; quiz3, shown ticked, joins the lock selection.
+        $this->assertTrue(locks\local\locknote::shows_note((int) $quiz1->cmid, false));
+        $this->assertFalse(locks\local\locknote::shows_note((int) $quiz1->cmid, true));
+        $this->assertTrue($DB->record_exists('tool_activitydates_lockitem', ['lockid' => $lockid, 'cmid' => $quiz3->cmid]));
+        // The dates selection is what the page showed.
+        $settingsid = $DB->get_field('tool_activitydates', 'id', ['courseid' => $course->id]);
+        $this->assertEqualsCanonicalizing(
+            [$quiz1->cmid, $quiz3->cmid],
+            $DB->get_fieldset_select('tool_activitydates_cmids', 'coursemoduleid', 'activitydates = ?', [$settingsid])
+        );
+    }
+
+    /**
+     * Unticking an activity that the page showed ticked still removes it from the lock
+     * selection, and "reset unselected" clears its lock.
+     */
+    public function test_untick_removes_lock_selection(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$course, [$quiz1, $quiz2]] = $this->graded_quizzes(2);
+        $manager = new activitydates();
+        $fromform = $this->fromform([
+            'lockmode' => 'none',
+            'lockresetunselected' => 1,
+            'activitygroup' => $this->ticks([$quiz1, $quiz2]),
+        ]);
+        $settings = activitydates::settings_from_form($fromform, $course->id, 0);
+        $tabledata = $manager->get_table_data($settings, [$quiz1->cmid, $quiz2->cmid]);
+        $manager->save($fromform, $course->id, $tabledata, $this->proposed_values($tabledata), [], [], [], true, true, true);
+        $locked = strtotime('2029-05-01 12:00');
+        (new locks\manager())->apply_locks([$quiz2->cmid => $locked], 'quiz', $course->id, false);
+
+        // Untick quiz2.
+        $fromform->activitygroup = $this->ticks([$quiz1]);
+        $settings = activitydates::settings_from_form($fromform, $course->id, (int) $settings->id);
+        $tabledata = $manager->get_table_data($settings, [$quiz1->cmid]);
+        $manager->save($fromform, $course->id, $tabledata, $this->proposed_values($tabledata), [], [], [], true, true, true);
+
+        $this->assertSame(0, $this->locktime($course->id, 'quiz', $quiz2->id));
+        $this->assertFalse($DB->record_exists('tool_activitydates_lockitem', ['cmid' => $quiz2->cmid]));
+        $this->assertTrue($DB->record_exists('tool_activitydates_lockitem', ['cmid' => $quiz1->cmid]));
     }
 
     /**
