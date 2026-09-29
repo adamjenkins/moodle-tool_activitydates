@@ -58,7 +58,18 @@ All notable changes to `tool_activitydates` are documented in this file.
   sit below them, so they stay visible while those are collapsed.
 - The site settings `lockshownote` and `lockshownotecoursepage` now only set
   the starting state of the note checkboxes for activities without a saved
-  note.
+  note, applied when such an activity is selected; unselected, its boxes show
+  unticked.
+- With both capabilities the ticks come from the dates selection
+  (`tool_activitydates_cmids`). Save keeps the lock item, notes and lock date
+  of an unticked activity that only the lock selection holds (e.g. after the
+  upgrade from 2.0, whose two tabs were selected separately); unticking an
+  activity the page showed ticked removes it from both.
+- A lock date posted unchanged is not written, so the grade items of one
+  activity keep their different lock dates; it still counts as updated.
+- A table date in the hour a daylight-saving fall-back repeats is parsed as the
+  row's current or proposed date when that shows the same, so it is saved as
+  shown.
 - The upgrade sets `shownotecoursepage` on each lock item whose note was on in
   a course that showed notes on the course page, then drops `shownote` and
   `shownotecoursepage` from `tool_activitydates_lock`.

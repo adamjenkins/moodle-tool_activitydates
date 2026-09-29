@@ -164,10 +164,11 @@ For **unselected** activities: hidden if *Hide unselected* is on (otherwise show
 
 With `:managelocks`:
 
-- The lock settings, the selection and each selected row's **Activity page** and **Course page** note ticks are saved. An activity that is not selected has no note.
-- Unless the lock option is **No lock**, the lock date (`locktime`) of every grade item of each selected, scheduled activity is set to its **Locked** value; an empty value clears it. Moodle's own scheduled task (`\core\task\grade_cron_task`) then locks the items once that time has passed; nothing is locked at the moment you save. A selected activity without a grade item is skipped and not counted.
+- The lock settings, the selection and each selected row's **Activity page** and **Course page** note ticks are saved. An activity that is not selected has no note, and its note boxes show unticked; ticking the activity sets them to the site defaults (see [Site-wide defaults](#site-wide-defaults)).
+- Unless the lock option is **No lock**, the lock date (`locktime`) of every grade item of each selected, scheduled activity is set to its **Locked** value; an empty value clears it. A **Locked** value left as the page showed it is not written, so an activity whose grade items have different lock dates (the page shows the earliest) keeps them. Moodle's own scheduled task (`\core\task\grade_cron_task`) then locks the items once that time has passed; nothing is locked at the moment you save. A selected activity without a grade item is skipped and not counted.
 - With **No lock**, no lock date is written, so the locks already in the gradebook stay as they are.
 - With **Clear the locks of unselected activities** on, the lock date of every unselected activity of the type is cleared (an item that is already locked stays locked).
+- The page has one selection, but the dates and the grade locks each keep their own saved copy. With both capabilities, the ticks you see on loading are the dates selection. An activity that only the grade-lock selection holds (after the upgrade from 2.0, where the two tabs were selected separately, or after a save by someone with `:managelocks` only) therefore shows unticked, and saving leaves its grade-lock selection, notes and lock date as they are. Tick it to bring it into both selections; untick it again and save to remove it from both.
 - The **Fix** ticks of Locked are saved for the selected activities.
 - The plugin does not store lock dates itself: the gradebook's lock date is the only record, so a date changed in the gradebook's own settings shows up here too.
 
@@ -195,8 +196,8 @@ The Grade locks section replaces the `tool_timelocker` plugin, but both can be i
 - Session length (default **7**).
 - Activities per session (default **2**).
 - Enable the session finish date by default (default **off**).
-- Close dates (default **At the end of this session**) and Days until close (default **7**).
 - Due dates (default **No date**) and Days until due (default **7**). These apply only to activity types with a due date.
+- Close dates (default **At the end of this session**) and Days until close (default **7**).
 - Hide unselected (default off).
 
 A **Grade locks** heading on the same page holds the Grade locks section's defaults:

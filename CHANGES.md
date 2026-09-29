@@ -51,6 +51,11 @@ optional finish date and an editable preview table.
   select-all). They replace the Grade locks settings "Show student note" and
   "Also show notes on the course page", which now only set the starting state
   for activities without a saved note. The upgrade keeps what students see.
+- Changed: with both capabilities, the page's ticks come from the dates
+  selection. An activity that only the grade-lock selection holds (possible
+  after the upgrade, because the two tabs were selected separately) shows
+  unticked, and saving leaves its grade-lock selection, notes and lock date
+  alone.
 - Changed: the form's new **Grade locks** and **Advanced** sections collapse;
   the Save buttons sit below them, so they stay visible.
 - New: any date in the table can be left empty, meaning "not set"; an empty
@@ -63,7 +68,10 @@ optional finish date and an editable preview table.
 - Changed: "At the end of this session" now closes an activity when the next
   session opens. 2.0.0 closed it the day before, at the finish date's time.
 - Changed: day counts use the teacher's timezone, so "+7 days" keeps the time
-  of day across a daylight-saving change.
+  of day across a daylight-saving change. A date in the hour that a
+  daylight-saving change repeats is saved as the table showed it.
+- Changed: a lock date saved unchanged is not rewritten, so an activity whose
+  grade items have different lock dates keeps them.
 
 ## v2.0.0
 

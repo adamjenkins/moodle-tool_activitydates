@@ -33,7 +33,7 @@ A collapsible **Grade locks** section on the same page schedules gradebook lock 
 
 ## Settings
 
-Site administration → Plugins → Admin tools → Activity dates provides site-wide defaults for the scheduling form: session length, activities per session, whether the finish date is enabled, the close-date and due-date options (with their number of days), and whether unselected activities are hidden by default. A "Grade locks" heading on the same page holds the grade-lock defaults: the lock option (No lock) with its number of days, and the starting state of the Activity page and Course page note checkboxes for activities without a saved note.
+Site administration → Plugins → Admin tools → Activity dates provides site-wide defaults for the scheduling form: session length, activities per session, whether the finish date is enabled, the due-date and close-date options (with their number of days), and whether unselected activities are hidden by default. A "Grade locks" heading on the same page holds the grade-lock defaults: the lock option (No lock) with its number of days, and the starting state of the Activity page and Course page note checkboxes for activities without a saved note.
 
 ## Privacy
 
