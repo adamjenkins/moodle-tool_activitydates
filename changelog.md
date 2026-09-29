@@ -21,15 +21,28 @@ All notable changes to `tool_activitydates` are documented in this file.
   days from opening, at the end of this session, all on a date, or No lock
   (the default), which leaves existing grade locks untouched. Site defaults
   `lockmode` and `lockdays`.
-- A **Preview** button and an editable date table with Open, Due, Close and
-  Locked columns. Save writes exactly the table's dates.
+- A **Preview** button and an editable date table: one **Dates** column
+  stacks each activity's Open, Due, Close and Locked fields. On load and after
+  a save the fields show the current dates (empty where not set); Preview fills
+  them with the proposals. Save writes exactly the table's dates, so a save
+  straight after loading changes nothing. Fields the user cannot change are
+  disabled.
+- A **Fix** checkbox for each date. A fixed date keeps its value through
+  Preview, even when the settings change, and "after a number of days" counts
+  from a fixed open date. The flags are stored per activity and field in the
+  new table `tool_activitydates_fixed` (`:manage` for open, due and close,
+  `:managelocks` for the lock date) and deleted with the course.
+- A **Grade-lock note** column with per-activity **Activity page** and **Course
+  page** checkboxes, each with a select-all, stored in the new
+  `tool_activitydates_lockitem.shownotecoursepage` field.
 - Row validation on Save, only between dates that are set: close after open,
   due after open and no later than close. Any date may be left empty; an empty
   lock date clears the lock. If any row fails, nothing is written and the
   edited values are kept with an error on each wrong field.
 - Stale-table protection: changing a date-affecting setting or the selection
   after a Preview shows a "Settings changed" bar and disables the Save buttons;
-  the server refuses a save whose settings no longer match the table.
+  the server refuses a save whose settings no longer match the table. The Fix
+  and note checkboxes are not part of this check.
 
 ### Changed
 
@@ -41,6 +54,14 @@ All notable changes to `tool_activitydates` are documented in this file.
   open/close dates (e.g. assignments) are offered for their lock dates only.
 - Preview replaces Refresh and saves nothing; Refresh saved the settings and
   selection.
+- The form's sections Grade locks and Advanced are collapsible; the buttons
+  sit below them, so they stay visible while those are collapsed.
+- The site settings `lockshownote` and `lockshownotecoursepage` now only set
+  the starting state of the note checkboxes for activities without a saved
+  note.
+- The upgrade sets `shownotecoursepage` on each lock item whose note was on in
+  a course that showed notes on the course page, then drops `shownote` and
+  `shownotecoursepage` from `tool_activitydates_lock`.
 - "At the end of this session" now closes an activity when the next session
   opens. 2.0.0 closed it the day before, at the finish date's time of day. The
   finish date no longer sets any time of day.
@@ -56,6 +77,8 @@ All notable changes to `tool_activitydates` are documented in this file.
 
 ### Removed
 
+- The course-level "Show student note" and "Also show notes on the course
+  page" options of the Grade locks section (now per activity).
 - The "Stay available after session finish" option and its site default.
 - The Grade locks tab and its own schedule settings (start, session length,
   activities per session) with the `locksessionlength` and

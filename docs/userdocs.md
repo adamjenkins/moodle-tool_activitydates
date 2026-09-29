@@ -36,8 +36,8 @@ The page needs one of two capabilities in the course, and it shows and saves onl
 
 | Capability | Lets the user | Default holders |
 |------------|---------------|-----------------|
-| `tool/activitydates:manage` | Schedule open, due and close dates; the hide and reset options for unselected activities. | Editing teachers and managers |
-| `tool/activitydates:managelocks` | Schedule gradebook lock dates and the student notes (the **Grade locks** section and the **Locked** and **Show student note** columns). Cloned from `moodle/grade:manage`. | Editing teachers and managers |
+| `tool/activitydates:manage` | Schedule open, due and close dates and set their **Fix** ticks; the hide and reset options for unselected activities. | Editing teachers and managers |
+| `tool/activitydates:managelocks` | Schedule gradebook lock dates and the student notes: the **Grade locks** section, the **Locked** date and its **Fix** tick, and the **Grade-lock note** column. Cloned from `moodle/grade:manage`. | Editing teachers and managers |
 
 Both carry a `RISK_DATALOSS` warning, because a save bulk-overwrites the activities' dates or the gradebook's lock dates. A user with neither capability gets the standard "no permission" error.
 
@@ -66,11 +66,11 @@ The form shows, in this order:
 
 1. **Activity type** and **Preview**.
 2. **Schedule** — Start, Finish, Session length, Activities per session.
-3. **Due dates** — only for activity types with a due date: in a standard Moodle that is the **quiz on Moodle 5.3 and later**. On Moodle 5.0 to 5.2 the quiz has no due date, so these settings and the Due column do not appear. (The tool checks for the `duedate` column, not the Moodle version.) Needs `:manage`.
+3. **Due dates** — only for activity types with a due date: in a standard Moodle that is the **quiz on Moodle 5.3 and later**. On Moodle 5.0 to 5.2 the quiz has no due date, so these settings and the table's Due date do not appear. (The tool checks for the `duedate` column, not the Moodle version.) Needs `:manage`.
 4. **Close dates**. Needs `:manage`.
 5. **Grade locks** section. Needs `:managelocks`. It is collapsed while its lock option is **No lock**.
 6. **Advanced** — Hide unselected, Reset unselected. Needs `:manage`.
-7. The buttons.
+7. The buttons. They sit below every section, so they stay visible when **Advanced** or **Grade locks** is collapsed.
 
 The open date has no settings of its own: each activity opens at the start of its session.
 
@@ -98,10 +98,10 @@ Due dates must fall after the open date and no later than the close date, as in 
 
 | Field | Meaning |
 |-------|---------|
-| **Lock grades** / **Days until locked** / **Lock all on** | How each selected activity's gradebook lock date is set, with the four options above. Days count from the activity's open date (its session start). |
-| **Show student note** | Whether the student note is switched on for activities that you tick for the first time. Each row's own **Show student note** box is what counts once saved. |
-| **Also show notes on the course page** | Show each switched-on note next to its activity on the course page as well as on the activity page. |
+| **Lock grades** / **Days until locked** / **Lock all on** | How each selected activity's gradebook lock date is set, with the four options above. Days count from the activity's open date (its session start, or its fixed open date). |
 | **Clear the locks of unselected activities** | Clear the gradebook lock date of every activity of this type that is not ticked. This applies whatever the lock option, including **No lock**. |
+
+The student notes are chosen for each activity in the table's **Grade-lock note** column (step 4).
 
 **Advanced:**
 
@@ -112,33 +112,36 @@ Due dates must fall after the open date and no later than the close date, as in 
 
 ### 4. Select activities and preview the dates
 
-Tick the activities you want scheduled in the table, then press **Preview**. The header rows show the session number and its **Opens – Closes** window. The table's columns are:
+When the page opens, and again after a save, the table shows each activity's **current** dates. Tick the activities you want scheduled, then press **Preview** to fill the table with the proposed dates. The header rows show the session number and its **Opens – Closes** window. The table's columns are:
 
 - the selection tick (the header checkbox selects or clears them all), the name, the description, and for quizzes the question count;
-- **Current** — the activity's dates now: open, due, close and locked (the lock date read live from the gradebook);
-- **Open**, **Due** (only for types with a due date, i.e. quizzes on Moodle 5.3 and later), **Close** and **Locked** — for each selected, scheduled activity, editable fields filled with the proposed dates;
-- **Show student note** (with `:managelocks`; the header checkbox switches them all).
+- **Dates** — one column that stacks, for each activity, **Open**, **Due** (only for types with a due date, i.e. quizzes on Moodle 5.3 and later), **Close** and **Locked** (with `:managelocks`, for an activity type with gradebook grade items; the lock date is read live from the gradebook). Each date is an editable field with its own **Fix** tick and room for an error message;
+- **Grade-lock note** (with `:managelocks`, for an activity type with gradebook grade items) — two ticks per activity, **Activity page** and **Course page**, each with a header checkbox that switches them all (see *Grade lock notes* below);
+- the status.
 
-Which date fields are editable:
+An empty date field means the date is not set. Which date fields are editable:
 
-- Open, Due and Close need `:manage` and a type with dates.
-- Locked needs `:managelocks`, a lock option other than **No lock**, and an activity with a grade item. With **No lock** the Current column still shows each lock in force.
-- A field you cannot edit is not shown as a field; the Current column shows its value.
+- Open, Due and Close need `:manage` and a type with dates. A lock-only type (e.g. Assignments) shows only Locked.
+- Locked needs `:managelocks`, a lock option other than **No lock**, and an activity with a grade item.
+- Only rows that are selected and scheduled are editable.
+- Every other date field is shown greyed out (disabled) with the activity's current value, so with **No lock** the Locked field still shows each lock in force. A disabled field is not sent when you save.
 
-Every other row shows its status instead: **Not scheduled** (unticked, or past the finish date), **Will be hidden** (with *Hide unselected*) or **Dates will be reset** (with *Reset unselected*).
+Rows that are not scheduled show their status: **Not scheduled** (unticked, or past the finish date), **Will be hidden** (with *Hide unselected*) or **Dates will be reset** (with *Reset unselected*).
 
 Activities are split into sessions **in course order** — the order they appear on the course page — in chunks of *Activities per session*.
 
-**Preview saves nothing.** It recalculates the table from the settings and ticks on the page, and replaces any dates you had edited.
+**Preview saves nothing.** It recalculates the table from the settings and ticks on the page, and replaces every date that is not fixed with its proposal, including dates you had edited.
 
-**Editing the dates.** You can change any date in the table before saving; Save writes exactly what the table shows. **Every date may be left empty**, which means "not set": an empty Open or Close saves no open or close date, an empty Due saves no due date, and an empty Locked clears that activity's grade lock.
+**Fixing a date.** Tick **Fix** next to a date to keep it when you press **Preview**: the scheduler recalculates only the dates that are not fixed, and a fixed field keeps the value in the table, even when you change the settings. The activity still takes its place in its session. *After a number of days* (for due, close and lock dates) counts from the activity's fixed open date when its Open is fixed and set, otherwise from its session start; *At the end of this session* and *All on a date* are not affected. The Fix ticks are saved for each activity and date, and stay ticked until you untick them. They can be changed only on selected rows: the ticks of unselected activities are kept as they were saved. Fixing Open, Due or Close needs `:manage`; fixing Locked needs `:managelocks`.
 
-**Stale table.** If you change a setting or a selection tick after previewing, a bar above the table says "Settings changed. Press Preview to update the dates." and the Save buttons are disabled until you press **Preview**. The note ticks and the *unselected* options do not do this, because they change no date. The server checks this as well: if the settings saved do not match the ones the table was built from, nothing is saved, the dates are recalculated, and you are asked to check them and save again.
+**Editing the dates.** You can change any editable date in the table before saving; Save writes exactly what the table shows, so a save straight after the page loads writes the current dates back and changes nothing. **Every date may be left empty**, which means "not set": an empty Open or Close saves no open or close date, an empty Due saves no due date, and an empty Locked clears that activity's grade lock.
+
+**Stale table.** If you change a setting or a selection tick after previewing, a bar above the table says "Settings changed. Press Preview to update the dates." and the Save buttons are disabled until you press **Preview**. The Fix ticks, the grade-lock note ticks and the *unselected* options do not do this, because they change no proposed date. The server checks this as well: if the settings saved do not match the ones the table was built from, nothing is saved, the dates are recalculated, and you are asked to check them and save again.
 
 ### 5. Save
 
 - **Preview** (next to the type dropdown) — recalculates the table, saves nothing.
-- **Save and display** — saves the settings and selection, **writes the table's dates**, and stays on the page.
+- **Save and display** — saves the settings, the selection, the Fix ticks and the note ticks, **writes the table's dates**, and stays on the page, which then shows the dates now in force.
 - **Save and return to course** — same, then returns to the course.
 - **Cancel** — discards and returns to the course.
 
@@ -155,26 +158,29 @@ With `:manage`, for a type with dates, for every **selected, scheduled** activit
 - Recreates its open/close **calendar events**.
 - Triggers a `course_module_updated` event.
 
+The **Fix** ticks of Open, Due and Close are saved for every selected activity.
+
 For **unselected** activities: hidden if *Hide unselected* is on (otherwise shown); dates (including the due date) cleared and calendar events deleted if *Reset unselected* is on.
 
 With `:managelocks`:
 
-- The lock settings, the selection and each row's **Show student note** tick are saved.
+- The lock settings, the selection and each selected row's **Activity page** and **Course page** note ticks are saved. An activity that is not selected has no note.
 - Unless the lock option is **No lock**, the lock date (`locktime`) of every grade item of each selected, scheduled activity is set to its **Locked** value; an empty value clears it. Moodle's own scheduled task (`\core\task\grade_cron_task`) then locks the items once that time has passed; nothing is locked at the moment you save. A selected activity without a grade item is skipped and not counted.
 - With **No lock**, no lock date is written, so the locks already in the gradebook stay as they are.
 - With **Clear the locks of unselected activities** on, the lock date of every unselected activity of the type is cleared (an item that is already locked stays locked).
+- The **Fix** ticks of Locked are saved for the selected activities.
 - The plugin does not store lock dates itself: the gradebook's lock date is the only record, so a date changed in the gradebook's own settings shows up here too.
 
 With the **Finish** date enabled, anything scheduled to open after it is skipped — both in the preview and on save — so you never see a window the tool would refuse to write. Only rows the table offers for editing can be written: a date sent for any other activity, or a field the user may not edit, is ignored.
 
 ## Grade lock notes: what students see
 
-With the note switched on for an activity, students see on the activity page:
+The notes are switched on per activity, in the table's **Grade-lock note** column. With **Activity page** ticked for an activity, students see on the activity page:
 
 - before the lock date: **"Grades lock after {date}"**;
 - once locked: **"Grades were locked on {date}"**.
 
-If the activity has several grade items, the earliest date applies. On Moodle 5.2 and later the note sits in the activity header next to the activity's dates; on Moodle 5.0 and 5.1 it appears at the top of the page. With **Also show notes on the course page** on, a compact copy of the note also appears under each activity on the course page — only for activities the student can see listed there, and only in course formats that use Moodle's standard activity layout.
+If the activity has several grade items, the earliest date applies. On Moodle 5.2 and later the note sits in the activity header next to the activity's dates; on Moodle 5.0 and 5.1 it appears at the top of the page. Where the row's **Course page** tick is on as well, a compact copy of the note also appears under that activity on the course page — only for activities the student can see listed there, and only in course formats that use Moodle's standard activity layout. The course-page copy needs the **Activity page** tick too: an activity with only **Course page** ticked shows no note.
 
 ### Using it alongside Timelocker
 
@@ -196,8 +202,7 @@ The Grade locks section replaces the `tool_timelocker` plugin, but both can be i
 A **Grade locks** heading on the same page holds the Grade locks section's defaults:
 
 - Lock grades (default **No lock**) and Days until locked (default **7**).
-- Show student note (default on).
-- Also show notes on the course page (default off).
+- Show student note (default on) and Also show notes on the course page (default off): the starting state of a row's **Activity page** and **Course page** note ticks, for an activity with no saved note.
 
 These only seed the form; each course then stores its own configuration.
 
@@ -216,8 +221,10 @@ On save, each row of the table is also checked (see *Save* above): among the dat
 
 ## Upgrading from 2.0.0
 
-- **One page.** The Grade locks tab is now the **Grade locks** section of the Activity dates page, and its table columns (**Locked**, **Show student note**) join the date columns. Old links to the Grade locks page redirect.
-- **Grade locks use the shared schedule.** The Grade locks tab's own schedule start, session length and activities per session (and their two site defaults) are gone; lock dates follow the page's schedule, with the four lock options. Every course starts with **No lock**, so the section is collapsed and the upgrade changes no lock date: locks already in the gradebook stay in force and show in the Current column, and the note settings and per-activity notes are kept.
+- **One page.** The Grade locks tab is now the **Grade locks** section of the Activity dates page. Its **Locked** date joins the open, due and close dates in the table's **Dates** column, and its note ticks become the **Grade-lock note** column. Old links to the Grade locks page redirect.
+- **One editable Dates column.** The table's **From** and **To** columns are replaced by the **Dates** column. Its fields show each activity's current dates until you press **Preview**, and each date has a **Fix** tick that keeps it through Preview. No date is fixed after the upgrade.
+- **Notes per activity.** The Grade locks section's **Show student note** and **Also show notes on the course page** options are gone; each activity has its own **Activity page** and **Course page** tick. The upgrade keeps what students see: an activity whose note was on, in a course that also showed notes on the course page, gets its **Course page** tick.
+- **Grade locks use the shared schedule.** The Grade locks tab's own schedule start, session length and activities per session (and their two site defaults) are gone; lock dates follow the page's schedule, with the four lock options. Every course starts with **No lock**, so the section is collapsed and the upgrade changes no lock date: locks already in the gradebook stay in force and show in the Locked field, and the per-activity notes are kept.
 - The **Stay available after session finish** option is gone. The upgrade converts it: a course (or the site default) that had it on gets the close option **No date**, and every other course gets **At the end of this session**.
 - **Behaviour change:** *At the end of this session* now closes an activity when the next session opens. In 2.0.0 it closed the day before, at the finish date's time of day.
 - The finish date no longer sets the time of day at which sessions close; it is now only an optional cap, and it is off by default for courses without a saved configuration. Saved configurations keep their setting.
@@ -225,16 +232,17 @@ On save, each row of the table is also checked (see *Save* above): among the dat
 
 ## Privacy
 
-The tool stores only **course-level scheduling configuration** — the chosen activity type, session and lock settings, and which course modules are selected. It stores **no personal user data** and implements Moodle's `null_provider`.
+The tool stores only **course-level scheduling configuration** — the chosen activity type, session and lock settings, which course modules are selected, their note ticks, and which of their dates are fixed. It stores **no personal user data** and implements Moodle's `null_provider`.
 
 ## Data stored
 
 - `tool_activitydates` — one configuration row per course.
 - `tool_activitydates_cmids` — the selected course-module IDs for that configuration.
-- `tool_activitydates_lock` — one grade-lock configuration row per course (lock option, note options, clear-unselected).
-- `tool_activitydates_lockitem` — the course-module IDs selected for grade locks, each with its note switch.
+- `tool_activitydates_lock` — one grade-lock configuration row per course (lock option, days, date, clear-unselected).
+- `tool_activitydates_lockitem` — the course-module IDs selected for grade locks, each with its activity-page and course-page note switches.
+- `tool_activitydates_fixed` — the fixed dates: one row per course module and fixed field (`timeopen`, `duedate`, `timeclose` or `timelock`). It stores only the flag; the date itself stays in the activity or the gradebook.
 
-Deleting a course deletes its rows from all four tables.
+Deleting a course deletes its rows from all five tables.
 
 ## License
 
