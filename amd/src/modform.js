@@ -15,7 +15,7 @@
 
 /**
  * Mirror the visible activity checkboxes into the hidden form checkboxes,
- * enable each row's Fix and note checkboxes only while the row is selected,
+ * enable each row's Hold and note checkboxes only while the row is selected,
  * drive the select-all and the two note select-all checkboxes, and preview
  * automatically when the activity type is changed.
  *
@@ -40,14 +40,24 @@ export const init = () => {
 
     // The Grade-lock note column's header checkboxes tick or untick the activity-page
     // or the course-page note of every selected row (the others are disabled).
-    [
+    const noteToggles = [
         ['id_togglenotes', 'shownote_cmids[]'],
         ['id_togglecoursenotes', 'shownotecourse_cmids[]'],
-    ].forEach(([toggleid, name]) => {
-        const toggle = document.getElementById(toggleid);
-        if (!toggle) {
-            return;
-        }
+    ].map(([toggleid, name]) => [document.getElementById(toggleid), name]).filter(([toggle]) => toggle);
+
+    /**
+     * Tick each note header checkbox only when every enabled note checkbox of its
+     * kind is ticked, and there is at least one.
+     */
+    const syncNoteToggles = () => {
+        noteToggles.forEach(([toggle, name]) => {
+            const enabled = Array.from(document.querySelectorAll('input[name="' + name + '"]'))
+                .filter(checkbox => !checkbox.disabled);
+            toggle.checked = enabled.length > 0 && enabled.every(checkbox => checkbox.checked);
+        });
+    };
+
+    noteToggles.forEach(([toggle, name]) => {
         toggle.addEventListener('click', e => {
             document.querySelectorAll('input[name="' + name + '"]').forEach(checkbox => {
                 if (!checkbox.disabled) {
@@ -55,10 +65,14 @@ export const init = () => {
                 }
             });
         });
+        document.querySelectorAll('input[name="' + name + '"]').forEach(checkbox => {
+            checkbox.addEventListener('change', syncNoteToggles);
+        });
     });
+    syncNoteToggles();
 
     /**
-     * Enable a row's Fix and note checkboxes only while the row is selected. Their
+     * Enable a row's Hold and note checkboxes only while the row is selected. Their
      * values are saved for selected rows only, and a disabled checkbox is not posted.
      * A note checkbox of a row without a saved note takes the site default the first
      * time the row is selected.
@@ -74,6 +88,7 @@ export const init = () => {
                 delete control.dataset.defaultchecked;
             }
         });
+        syncNoteToggles();
     };
 
     const selectAllCheckBox = document.getElementById('id_selectall');

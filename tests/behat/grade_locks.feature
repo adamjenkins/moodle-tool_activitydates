@@ -315,9 +315,13 @@ Feature: Schedule gradebook lock dates on the Activity dates page
     And I click on "selectall" "checkbox"
     And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownote_')]" matches value "1"
     And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownotecourse_')]" matches value "0"
-    # The header box ticks the activity-page note of every selected row.
+    # The header box follows the selected rows (both notes on by default), and switches them all.
     And the "aria-label" attribute of "#id_togglenotes" "css_element" should contain "Activity page note of all selected activities"
     And the "aria-label" attribute of "#id_togglecoursenotes" "css_element" should contain "Course page note of all selected activities"
+    And the field with xpath "//input[@id='id_togglenotes']" matches value "1"
+    And I click on "#id_togglenotes" "css_element"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownote_')]" matches value "0"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownote_')]" matches value "0"
     And I click on "#id_togglenotes" "css_element"
     And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownote_')]" matches value "1"
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownotecourse_')]" to "1"
@@ -327,6 +331,13 @@ Feature: Schedule gradebook lock dates on the Activity dates page
     Then I should see "Updated the gradebook lock date for 2 activities."
     And the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownotecourse_')]" matches value "1"
     And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownotecourse_')]" matches value "0"
+    # On load a header box is ticked only when every selected row's box is, and it follows the rows.
+    And the field with xpath "//input[@id='id_togglenotes']" matches value "1"
+    And the field with xpath "//input[@id='id_togglecoursenotes']" matches value "0"
+    And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownotecourse_')]" to "1"
+    And the field with xpath "//input[@id='id_togglecoursenotes']" matches value "1"
+    And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownote_')]" to "0"
+    And the field with xpath "//input[@id='id_togglenotes']" matches value "0"
     And I log out
 
     When I log in as "student1"
