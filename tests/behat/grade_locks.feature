@@ -310,8 +310,14 @@ Feature: Schedule gradebook lock dates on the Activity dates page
       | schedulestart[year]  | 2030                       |
       | activitiespersession | 1                          |
       | Lock grades          | At the end of this session |
+    # An unselected row without a saved note shows none; selecting it applies the site default (on).
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownote_')]" matches value "0"
     And I click on "selectall" "checkbox"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownote_')]" matches value "1"
+    And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownotecourse_')]" matches value "0"
     # The header box ticks the activity-page note of every selected row.
+    And the "aria-label" attribute of "#id_togglenotes" "css_element" should contain "Activity page note of all selected activities"
+    And the "aria-label" attribute of "#id_togglecoursenotes" "css_element" should contain "Course page note of all selected activities"
     And I click on "#id_togglenotes" "css_element"
     And the field with xpath "//tr[.//a[normalize-space(.)='Quiz2']]//input[starts-with(@id, 'id_shownote_')]" matches value "1"
     And I set the field with xpath "//tr[.//a[normalize-space(.)='Quiz1']]//input[starts-with(@id, 'id_shownotecourse_')]" to "1"

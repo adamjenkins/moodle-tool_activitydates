@@ -117,4 +117,6 @@ $string['shownotecoursepage_desc'] = 'Default value for whether switched-on stud
 $string['starttofinishmustbe'] = 'Start to finish must be at least one day.';
 $string['tabdates'] = 'Activity dates';
 $string['tablestale'] = 'Settings changed. Press Preview to update the dates.';
+$string['togglecoursenotes'] = 'Course page note of all selected activities';
+$string['togglenotes'] = 'Activity page note of all selected activities';
 $string['toggleselection'] = 'Toggle selection of all activities';
