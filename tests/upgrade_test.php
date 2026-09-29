@@ -45,12 +45,18 @@ final class upgrade_test extends \advanced_testcase {
         $field = new \xmldb_field('stayavailable', XMLDB_TYPE_INTEGER, '1', null, null, null, '0');
         $dbman->add_field($table, $field);
         try {
-            $stay = $DB->insert_record('tool_activitydates',
-                (object) ['courseid' => 1001, 'modtype' => 'quiz', 'stayavailable' => 1, 'closemode' => 'days']);
-            $close = $DB->insert_record('tool_activitydates',
-                (object) ['courseid' => 1002, 'modtype' => 'quiz', 'stayavailable' => 0, 'closemode' => 'days']);
-            $unset = $DB->insert_record('tool_activitydates',
-                (object) ['courseid' => 1003, 'modtype' => 'quiz', 'stayavailable' => null, 'closemode' => 'days']);
+            $stay = $DB->insert_record(
+                'tool_activitydates',
+                (object) ['courseid' => 1001, 'modtype' => 'quiz', 'stayavailable' => 1, 'closemode' => 'days']
+            );
+            $close = $DB->insert_record(
+                'tool_activitydates',
+                (object) ['courseid' => 1002, 'modtype' => 'quiz', 'stayavailable' => 0, 'closemode' => 'days']
+            );
+            $unset = $DB->insert_record(
+                'tool_activitydates',
+                (object) ['courseid' => 1003, 'modtype' => 'quiz', 'stayavailable' => null, 'closemode' => 'days']
+            );
 
             upgrade_helper::convert_stayavailable();
 
