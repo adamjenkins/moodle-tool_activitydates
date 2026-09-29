@@ -217,14 +217,9 @@ final class preview_rows {
                 ];
             }
 
-            $shownote = !empty($row['shownote']);
-            $shownotecoursepage = !empty($row['shownotecoursepage']);
-            if ($selected && $notes !== null) {
-                $shownote = isset($notes[$cmid]);
-            }
-            if ($selected && $coursenotes !== null) {
-                $shownotecoursepage = isset($coursenotes[$cmid]);
-            }
+            $shownote = $selected && $notes !== null ? isset($notes[$cmid]) : !empty($row['shownote']);
+            $shownotecoursepage = $selected && $coursenotes !== null
+                ? isset($coursenotes[$cmid]) : !empty($row['shownotecoursepage']);
 
             $rows[] = [
                 'isheader' => false,
