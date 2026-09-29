@@ -6,21 +6,27 @@ All notable changes to `tool_activitydates` are documented in this file.
 
 ### Added
 
-- An Enable checkbox for the session finish date. Enabled, it caps the
-  schedule: sessions that start after it are not scheduled. Disabled, every
-  selected activity is scheduled.
-- Close-date options on the Activity dates tab: after a number of days, at the
-  end of this session, all on a date, or no date, with site defaults.
+- An Enable checkbox for the session finish date, off by default, with a new
+  site default `finishenabled`. Enabled, it caps the schedule: sessions that
+  start after it are not scheduled. Disabled, every selected activity is
+  scheduled. Saved course configurations keep their setting.
+- Close-date options: after a number of days, at the end of this session, all
+  on a date, or no date, with site defaults.
 - Due-date options, the same four, for activity types whose table has a
-  `duedate` column (the quiz on Moodle 5.3 and later). The feature is gated on
-  the column, not on the Moodle version. Due dates must be after the open date
-  and no later than the close date.
-- A **Preview** button on both tabs and an editable date table: open, due and
-  close dates on the Activity dates tab, lock dates on the Grade locks tab.
-  Save writes exactly the table's dates.
-- Row validation on Save: open date required, close after open, due after open
-  and no later than close, lock date required. If any row fails, nothing is
-  written and the edited values are kept with an error on each wrong field.
+  `duedate` column (the quiz on Moodle 5.3 and later; on earlier versions the
+  due settings and column do not appear). The feature is gated on the column,
+  not on the Moodle version. Due dates must be after the open date and no later
+  than the close date.
+- Lock-date options for grade locks, on the same schedule: after a number of
+  days from opening, at the end of this session, all on a date, or No lock
+  (the default), which leaves existing grade locks untouched. Site defaults
+  `lockmode` and `lockdays`.
+- A **Preview** button and an editable date table with Open, Due, Close and
+  Locked columns. Save writes exactly the table's dates.
+- Row validation on Save, only between dates that are set: close after open,
+  due after open and no later than close. Any date may be left empty; an empty
+  lock date clears the lock. If any row fails, nothing is written and the
+  edited values are kept with an error on each wrong field.
 - Stale-table protection: changing a date-affecting setting or the selection
   after a Preview shows a "Settings changed" bar and disables the Save buttons;
   the server refuses a save whose settings no longer match the table.
@@ -28,6 +34,11 @@ All notable changes to `tool_activitydates` are documented in this file.
 ### Changed
 
 - Declare Moodle 5.3 support.
+- The Grade locks tab is merged into the Activity dates page as a collapsible
+  Grade locks section, collapsed while the lock option is No lock. `locks.php`
+  redirects to `view.php`. The page needs `:manage` or `:managelocks` and shows
+  and saves only what the user's capabilities allow. Graded types without
+  open/close dates (e.g. assignments) are offered for their lock dates only.
 - Preview replaces Refresh and saves nothing; Refresh saved the settings and
   selection.
 - "At the end of this session" now closes an activity when the next session
@@ -38,10 +49,17 @@ All notable changes to `tool_activitydates` are documented in this file.
 - The upgrade converts `stayavailable` into the new close option, per course
   (1 becomes `none`, 0 becomes `session`) and in the site defaults, then drops
   the column and the setting.
+- The upgrade gives `tool_activitydates_lock` the `lockmode` (`none`),
+  `lockdays` and `lockdate` fields and drops its `modtype`, `schedulestart`,
+  `sessionlength` and `activitiespersession`. Lock dates already in the
+  gradebook and the note settings are kept.
 
 ### Removed
 
 - The "Stay available after session finish" option and its site default.
+- The Grade locks tab and its own schedule settings (start, session length,
+  activities per session) with the `locksessionlength` and
+  `lockactivitiespersession` site defaults.
 
 ### Fixed
 

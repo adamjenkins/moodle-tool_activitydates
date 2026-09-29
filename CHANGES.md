@@ -2,27 +2,44 @@
 
 ## Unreleased
 
-Adds close/due options, an optional finish date and an editable preview table.
+Brings dates and grade locks onto one page, with close/due options, an
+optional finish date and an editable preview table.
 
 - Declare Moodle 5.3 support.
-- New: the session **Finish** date has an Enable checkbox. Enabled, it only caps
-  the schedule (sessions that start after it are not scheduled); disabled,
-  every selected activity is scheduled. It no longer sets any time of day.
+- Changed: **one page.** The Grade locks tab is now a collapsible **Grade
+  locks** section of the Activity dates page, and the table shows the open,
+  due, close and locked dates side by side. The former Grade locks page address
+  redirects there. The page opens with either capability and shows and saves
+  only what the user may change. Graded types without open/close dates, such as
+  assignments, are offered for their lock dates only.
+- Changed: grade locks use the page's schedule. The lock date has the same
+  options as the close date (after a number of days, at the end of this
+  session, all on a date) or **No lock**, which leaves existing grade locks as
+  they are. The lock page's own start, session length and activities per
+  session are gone. After the upgrade every course is on No lock, so no lock
+  date changes; notes are kept.
+- New: the session **Finish** date has an Enable checkbox, off by default (a new
+  site default). Enabled, it only caps the schedule (sessions that start after
+  it are not scheduled); disabled, every selected activity is scheduled. It no
+  longer sets any time of day.
 - New: **Close dates** offers four options: after a number of days, at the end
   of this session, all on a date, or no date. They replace the "Stay available
   after session finish" checkbox, which the upgrade converts (on becomes "No
   date", off becomes "At the end of this session"), in each course and in the
   site defaults.
 - New: **Due dates**, with the same four options, for activity types whose
-  table has a `duedate` column: the quiz on Moodle 5.3 and later. Due dates must
-  be after the open date and no later than the close date, as in the quiz's own
-  settings, so the quiz's due date now stays consistent with the open and close
-  dates the tool writes. "Reset unselected" clears it too.
-- New: **Preview** replaces Refresh on both tabs. It fills an editable table
-  (open, due and close dates; lock dates on the Grade locks tab) and saves
+  table has a `duedate` column: the quiz on Moodle 5.3 and later (earlier
+  versions show no due settings or column). Due dates must be after the open
+  date and no later than the close date, as in the quiz's own settings, so the
+  quiz's due date now stays consistent with the open and close dates the tool
+  writes. "Reset unselected" clears it too.
+- New: **Preview** replaces Refresh. It fills an editable table and saves
   nothing, where Refresh used to save the settings and selection. Save writes
   exactly the dates in the table after checking every row; if a row is wrong,
   nothing is written and the edits are kept.
+- New: any date in the table can be left empty, meaning "not set"; an empty
+  lock date clears the lock. The ordering checks apply only between dates that
+  are set.
 - New: a changed setting or selection marks the table stale. A bar asks for a
   new Preview and the Save buttons are disabled; the server also refuses a save
   whose settings no longer match the table.
