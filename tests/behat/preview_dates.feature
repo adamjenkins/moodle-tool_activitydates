@@ -57,6 +57,17 @@ Feature: Preview and edit activity dates before saving
     And the "timeclose" of "quiz1" should be "2030-01-08T09:00"
     And the "timeopen" of "quiz4" should be "2030-01-08T09:00"
 
+  Scenario: A cleared open date is saved as not set and the close date is kept
+    When I set the "timeopen" date of "Quiz1" to ""
+    # The close date has no open date to be ordered against.
+    Then I should not see "The close date must be after the open date." in the "Quiz1" "table_row"
+    And I press "Save and display"
+    Then I should see "Updated dates for 4 of"
+    And I should not see "Nothing was saved"
+    And the "timeopen" of "quiz1" should be "0"
+    And the "timeclose" of "quiz1" should be "2030-01-08T09:00"
+    And the "timeopen" of "quiz2" should be "2030-01-01T09:00"
+
   Scenario: Changing a setting after Preview marks the table stale and disables Save
     Given "Settings changed. Press Preview to update the dates." "text" should not be visible
     And the "Save and display" "button" should be enabled
@@ -100,6 +111,12 @@ Feature: Preview and edit activity dates before saving
     And I should not see "Nothing was saved"
     And the "timeopen" of "quiz1" should be "2030-01-01T09:00"
     And the "timeopen" of "quiz3" should be "2030-01-08T09:00"
+
+  Scenario: Due dates are not offered where the activity table has no due date column
+    Given the "quiz" activity table has no due date column
+    Then "Due dates" "field" should not exist
+    And "//tr[.//a[normalize-space(.)='Quiz1']]//input[@data-field='duedate']" "xpath_element" should not exist
+    And the "timeopen" date input of "Quiz1" should be "2030-01-01T09:00"
 
   Scenario: A due date after the close date blocks Save
     Given the "quiz" activity table has a due date column

@@ -34,16 +34,15 @@ use Moodle\BehatExtension\Exception\SkippedException;
  * Behat steps for tool_activitydates.
  */
 class behat_tool_activitydates extends behat_base {
-    /** @var array page type => [script, capability that opens it] */
+    /** @var array page type => [script, capability named when access is refused] */
     private const PAGES = [
         'dates' => ['view.php', 'tool/activitydates:manage'],
-        'locks' => ['locks.php', 'tool/activitydates:managelocks'],
     ];
 
     /**
      * Look up a page type.
      *
-     * @param string $page The page type: 'dates' or 'locks'.
+     * @param string $page The page type: 'dates'.
      * @return array [script, capability]
      * @throws Exception If the page type is unknown.
      */
@@ -60,9 +59,8 @@ class behat_tool_activitydates extends behat_base {
      *
      * | page  | identifier       | description         |
      * | dates | Course shortname | Activity dates page |
-     * | locks | Course shortname | Grade locks page    |
      *
-     * @param string $page The page type: 'dates' or 'locks'.
+     * @param string $page The page type: 'dates'.
      * @param string $identifier The course shortname.
      * @return moodle_url
      * @throws Exception If the page type is unknown.
@@ -85,7 +83,7 @@ class behat_tool_activitydates extends behat_base {
      * @Then /^I should be refused access to the "(?P<identifier>[^"]*)" "tool_activitydates > (?P<page>[^"]*)" page$/
      *
      * @param string $identifier The course shortname.
-     * @param string $page The page type: 'dates' or 'locks'.
+     * @param string $page The page type: 'dates'.
      * @throws ExpectationException If the page opened, or failed for another reason.
      */
     public function i_should_be_refused_access_to_page(string $identifier, string $page): void {
@@ -114,6 +112,18 @@ class behat_tool_activitydates extends behat_base {
     }
 
     /**
+     * Open the former Grade locks page of a course, which now redirects to the Activity dates page.
+     *
+     * @When /^I open the former Grade locks page of "(?P<identifier>[^"]*)"$/
+     *
+     * @param string $identifier The course shortname.
+     */
+    public function i_open_the_former_grade_locks_page(string $identifier): void {
+        $url = new moodle_url('/admin/tool/activitydates/locks.php', ['courseid' => $this->get_course_id($identifier)]);
+        $this->getSession()->visit($this->locate_path($url->out_as_local_url(false)));
+    }
+
+    /**
      * Skip the scenario when the activity type's table has no duedate column.
      *
      * Quiz gained a duedate column in Moodle 5.3; on earlier versions the due-date
@@ -128,6 +138,24 @@ class behat_tool_activitydates extends behat_base {
         global $DB;
         if (!isset($DB->get_columns($modtype)['duedate'])) {
             throw new SkippedException("The '{$modtype}' table has no duedate column on this Moodle version");
+        }
+    }
+
+    /**
+     * Skip the scenario when the activity type's table has a duedate column.
+     *
+     * The converse of the step above, for the scenarios that check that due dates
+     * are not offered before Moodle 5.3.
+     *
+     * @Given /^the "(?P<modtype>[^"]*)" activity table has no due date column$/
+     *
+     * @param string $modtype The module type, e.g. 'quiz'.
+     * @throws SkippedException If the table has a duedate column.
+     */
+    public function the_activity_table_has_no_due_date_column(string $modtype): void {
+        global $DB;
+        if (isset($DB->get_columns($modtype)['duedate'])) {
+            throw new SkippedException("The '{$modtype}' table has a duedate column on this Moodle version");
         }
     }
 
@@ -184,7 +212,7 @@ class behat_tool_activitydates extends behat_base {
      *
      * @When /^I set the "(?P<field>[^"]*)" date of "(?P<activityname>[^"]*)" to "(?P<value>[^"]*)"$/
      *
-     * @param string $field The date field: timeopen, duedate, timeclose or locktime.
+     * @param string $field The date field: timeopen, duedate, timeclose or timelock.
      * @param string $activityname The activity name shown in the table.
      * @param string $value The value, YYYY-MM-DDTHH:MM, or empty.
      * @throws ExpectationException If the row has no such input.
@@ -201,7 +229,7 @@ class behat_tool_activitydates extends behat_base {
      *
      * @When /^I focus the "(?P<field>[^"]*)" date of "(?P<activityname>[^"]*)"$/
      *
-     * @param string $field The date field: timeopen, duedate, timeclose or locktime.
+     * @param string $field The date field: timeopen, duedate, timeclose or timelock.
      * @param string $activityname The activity name shown in the table.
      * @throws ExpectationException If the row has no such input.
      */
@@ -215,7 +243,7 @@ class behat_tool_activitydates extends behat_base {
      *
      * @Then /^the "(?P<field>[^"]*)" date input of "(?P<activityname>[^"]*)" should be "(?P<value>[^"]*)"$/
      *
-     * @param string $field The date field: timeopen, duedate, timeclose or locktime.
+     * @param string $field The date field: timeopen, duedate, timeclose or timelock.
      * @param string $activityname The activity name shown in the table.
      * @param string $value The expected value, YYYY-MM-DDTHH:MM, or empty.
      * @throws ExpectationException If the value differs.
@@ -279,7 +307,7 @@ class behat_tool_activitydates extends behat_base {
     /**
      * Find one editable date input in the preview table row of the named activity.
      *
-     * @param string $field The date field: timeopen, duedate, timeclose or locktime.
+     * @param string $field The date field: timeopen, duedate, timeclose or timelock.
      * @param string $activityname The activity name shown in the table.
      * @return \Behat\Mink\Element\NodeElement
      * @throws ExpectationException If the row has no such input.

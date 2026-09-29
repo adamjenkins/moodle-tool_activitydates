@@ -30,14 +30,14 @@ Feature: Bulk-schedule activity dates
     Given I log in as "teacher1"
     And I am on "Course 1" course homepage with editing mode on
     And I navigate to "Activity dates" in current page administration
-    # Assign1 uses allowsubmissionsfromdate/duedate, not timeopen/timeclose,
-    # so it must not be offered as an activity type.
+    # Assign1 uses allowsubmissionsfromdate/duedate, not timeopen/timeclose: it is
+    # offered for its grade lock only, without open and close dates.
     Then the "Activity type" select box should contain "Quizzes"
     And the "Activity type" select box should contain "Choices"
-    And the "Activity type" select box should not contain "Assignments"
+    And the "Activity type" select box should contain "Assignments"
 
-    # Choices sorts before Quizzes alphabetically and so may be the default
-    # activity type; select Quizzes explicitly and preview the table.
+    # Assignments and Choices sort before Quizzes alphabetically and so may be the
+    # default activity type; select Quizzes explicitly and preview the table.
     And I set the field "Activity type" to "Quizzes"
     And I press "Preview"
 
@@ -75,6 +75,12 @@ Feature: Bulk-schedule activity dates
     # plugin's table.
     And I am on the "quiz1" "activity editing" page
     Then the field "timeopen[day]" matches value "1"
+
+  Scenario: The session finish date is off on a course with no saved settings
+    Given I log in as "teacher1"
+    When I am on the "C1" "tool_activitydates > dates" page
+    Then the field "schedulefinish[enabled]" matches value "0"
+    And the "schedulefinish[day]" "field" should be disabled
 
   Scenario: Validation errors when scheduling activities
     Given I log in as "teacher1"
