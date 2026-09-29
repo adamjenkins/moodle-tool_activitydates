@@ -29,6 +29,9 @@ use tool_activitydates\modtypes;
 use tool_activitydates\event\dates_updated;
 use tool_activitydates\event\dates_viewed;
 use tool_activitydates\form\activitydates_form;
+use tool_activitydates\local\datefields;
+use tool_activitydates\local\fingerprint;
+use tool_activitydates\output\preview_rows;
 
 $courseid = required_param('courseid', PARAM_INT);
 $course = get_course($courseid);
@@ -76,25 +79,28 @@ if ($requested !== '' && array_key_exists($requested, $modules)) {
 }
 
 // A settings-shaped object so the table renders even before anything is saved.
+// Timestamps are floored to the minute, the precision the date selectors
+// submit, so a Save straight after page load matches the table's fingerprint.
 if ($config) {
-    $settings = clone $config;
-    $settings->modtype = $modtype;
+    $settings = activitydates_form::form_defaults($config);
+    $settings->finishenabled = (int) !empty($settings->schedulefinish);
+    $settings->schedulefinish = $settings->finishenabled ? $settings->schedulefinish : (int) $config->schedulefinish;
 } else {
-    $settings = (object) [
+    $settings = activitydates_form::form_defaults((object) [
         'id' => 0,
         'courseid' => $courseid,
-        'modtype' => $modtype,
         'schedulestart' => time(),
+        'finishenabled' => 1,
         'schedulefinish' => time() + 14 * DAYSECS,
-        'sessionlength' => (int) get_config('tool_activitydates', 'sessionlength'),
-        'activitiespersession' => (int) get_config('tool_activitydates', 'activitiespersession'),
-        'stayavailable' => (int) get_config('tool_activitydates', 'stayavailable'),
-        'hideunselected' => (int) get_config('tool_activitydates', 'hideunselected'),
-        'resetunselected' => 0,
-    ];
+    ]);
+    $settings->finishenabled = 1;
 }
+$settings->modtype = $modtype;
 
 $manager = new activitydates();
+$tz = core_date::get_user_timezone_object();
+$hasdue = activitydates::has_duedate($modtype);
+$validcmids = array_keys(activitydates::get_modules($settings));
 
 $mform = new activitydates_form($url->out(false), [
     'courseid' => $courseid,
@@ -107,41 +113,91 @@ if ($mform->is_cancelled()) {
     redirect(new moodle_url('/course/view.php', ['id' => $courseid]));
 }
 
+// Null renders the engine's proposals; an array re-renders the teacher's own values.
+$rowinputs = null;
+$rowerrors = [];
+
 if ($fromform = $mform->get_data()) {
-    [$selections, $settings] = $manager->update($fromform, $courseid);
-    $modtype = $settings->modtype;
+    // Preview (and a modtype change) builds the table from the submitted settings
+    // and selection, and persists nothing.
+    $settings = activitydates::settings_from_form($fromform, $courseid, (int) ($config->id ?? 0));
+    $selected = activitydates::selected_from_form($fromform, $validcmids);
 
-    // Refresh only persists settings and selections; Save also applies dates.
     if (isset($fromform->submitbutton) || isset($fromform->submitbutton2)) {
-        $tabledata = $manager->get_table_data($settings);
-        $count = $manager->apply_dates($tabledata, $settings);
-        $modname = $modules[$modtype] ?? $modtype;
-        \core\notification::success(
-            get_string('datesapplied', 'tool_activitydates', (object) ['count' => $count, 'modname' => $modname])
-        );
-        dates_updated::create(['context' => $context])->trigger();
+        $posted = optional_param('tablefingerprint', '', PARAM_ALPHANUM);
+        if ($posted !== fingerprint::dates($settings, $selected, $hasdue)) {
+            // The table was built from other settings: re-render fresh proposals.
+            \core\notification::error(get_string('errortablestale', 'tool_activitydates'));
+        } else {
+            $tabledata = $manager->get_table_data($settings, $selected);
+            // Only selected, scheduled rows of this table may be written.
+            $allowed = [];
+            foreach ($tabledata as $row) {
+                if (!$row['isheader'] && $row['selected'] === 'checked' && $row['scheduled']) {
+                    $allowed[(int) $row['id']] = true;
+                }
+            }
+            $inputs = [
+                'timeopen' => optional_param_array('timeopen_rows', [], PARAM_RAW_TRIMMED),
+                'duedate' => optional_param_array('duedate_rows', [], PARAM_RAW_TRIMMED),
+                'timeclose' => optional_param_array('timeclose_rows', [], PARAM_RAW_TRIMMED),
+            ];
+            [$values, $rowerrors] = datefields::validate_dates($inputs, $allowed, $hasdue, $tz);
+            if ($rowerrors) {
+                \core\notification::error(get_string('errorrows', 'tool_activitydates', count($rowerrors)));
+                $rowinputs = $inputs;
+            } else {
+                [$selections, $settings] = $manager->update($fromform, $courseid);
+                $count = $manager->apply_dates($tabledata, $settings, $values);
+                \core\notification::success(get_string(
+                    'datesapplied',
+                    'tool_activitydates',
+                    (object) ['count' => $count, 'modname' => $modules[$modtype] ?? $modtype]
+                ));
+                dates_updated::create(['context' => $context])->trigger();
 
-        if (isset($fromform->submitbutton2)) {
-            redirect(new moodle_url('/course/view.php', ['id' => $courseid]));
+                if (isset($fromform->submitbutton2)) {
+                    redirect(new moodle_url('/course/view.php', ['id' => $courseid]));
+                }
+                $selected = array_map(fn($record) => (int) $record->coursemoduleid, $selections);
+            }
         }
     }
+} else if ($mform->is_submitted() && ($submitted = $mform->get_submitted_data())) {
+    // Settings that failed validation: keep the teacher's ticks, and show the
+    // saved settings' table until the settings are corrected.
+    $selected = activitydates::selected_from_form($submitted, $validcmids);
+} else {
+    $selected = array_map('intval', array_keys($DB->get_records_menu(
+        'tool_activitydates_cmids',
+        ['activitydates' => $settings->id],
+        '',
+        'coursemoduleid, coursemoduleid'
+    )));
 }
 
-$tabledata = $manager->get_table_data($settings);
+$tabledata = $manager->get_table_data($settings, $selected);
 
 dates_viewed::create(['context' => $context])->trigger();
 
 $mform->set_data($settings);
+$mform->set_selection($selected);
 
+$showquestioncount = $modtype === 'quiz';
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('pluginname', 'tool_activitydates'));
 echo \tool_activitydates\local\tabs::render($courseid, 'dates');
 $mform->display();
 echo $OUTPUT->render_from_template('tool_activitydates/modtable', [
-    'tabledata' => $tabledata,
+    'formid' => activitydates_form::FORM_ID,
+    'fingerprint' => fingerprint::dates($settings, $selected, $hasdue),
+    'hasdue' => $hasdue,
+    'tabledata' => preview_rows::dates($tabledata, $rowinputs, $rowerrors, $tz),
     'modname' => $modtype,
-    'showquestioncount' => $modtype === 'quiz',
-    'colcount' => $modtype === 'quiz' ? 6 : 5,
+    'showquestioncount' => $showquestioncount,
+    // The select, name, description, current, open and close columns, plus questions and due when shown.
+    'colcount' => 6 + (int) $showquestioncount + (int) $hasdue,
+    'editcolspan' => $hasdue ? 3 : 2,
 ]);
 $PAGE->requires->js_call_amd('tool_activitydates/modform', 'init');
 echo $OUTPUT->footer();

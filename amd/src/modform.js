@@ -14,8 +14,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Mirror the visible activity checkboxes into the hidden form checkboxes and
- * drive the select-all toggle.
+ * Mirror the visible activity checkboxes into the hidden form checkboxes,
+ * drive the select-all toggle, and preview automatically when the activity
+ * type is changed.
  *
  * @module     tool_activitydates/modform
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -23,6 +24,18 @@
  */
 
 export const init = () => {
+
+    // Preview when the activity type changes, so the table and the schedule
+    // fields refresh for the newly chosen type. The Preview submit button is the
+    // no-JS fallback this mirrors. The form adds the group with appendName off,
+    // so the elements keep their own ids (id_modtype, id_preview).
+    const modtypeSelect = document.getElementById('id_modtype');
+    const previewButton = document.getElementById('id_preview');
+    if (modtypeSelect && previewButton) {
+        modtypeSelect.addEventListener('change', () => {
+            previewButton.click();
+        });
+    }
 
     const selectAllCheckBox = document.getElementById('id_selectall');
     // Guard against a course with no activities of the selected type, where the
