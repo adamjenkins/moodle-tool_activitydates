@@ -221,7 +221,7 @@ class activitydates {
      *
      * Data rows carry the current dates and, beside them:
      * - scheduled: whether the cm is selected and in a window;
-     * - proposed: the engine's ['timeopen', 'duedate', 'timeclose'], or null;
+     * - proposed: the engine's ['timeopen', 'duedate', 'timeclose', 'timelock'], or null;
      * - status: '' for scheduled rows, else the lang key of what Save does to
      *   the row (rowstatus_reset wins over rowstatus_hidden: a reset is not
      *   undone by showing the activity again);

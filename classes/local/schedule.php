@@ -65,23 +65,43 @@ final class schedule {
      * A session ends when the next one starts. With the finish date enabled, a
      * window starting after it is null and its cms are not scheduled.
      *
-     * @param \stdClass $settings settings object (tool_activitydates row shape).
+     * The lock date follows lockmode (lockdays/lockdate) like the close date,
+     * with days counted from the open date (the session start). It is null when
+     * the lock mode is none or the settings carry no lock fields.
+     *
+     * @param \stdClass $settings settings object (tool_activitydates row shape,
+     *   optionally with lockmode, lockdays and lockdate).
      * @param int[] $cmids every cm of the type, in course order.
      * @param array $selected cmid => true for selected cms.
      * @param bool $hasdue whether the type has a duedate column.
      * @param \DateTimeZone $tz the user's timezone.
+     * @param bool $hasdates whether the type has open and close dates; false for a
+     *   lock-only type, whose open, due and close dates are then null and whose close
+     *   and due modes are not checked.
      * @return array{windows: array<int, ?array{sessionnumber:int,start:int,end:int}>,
-     *               dates: array<int, ?array{timeopen:int,duedate:?int,timeclose:int}>}
+     *   dates: array<int, ?array{timeopen:?int,duedate:?int,timeclose:?int,timelock:?int}>}
      *   windows is keyed by chunk index (0-based, chunks of activitiespersession over ALL
      *   $cmids); dates is keyed by cmid, null = not scheduled.
-     * @throws \coding_exception on an unknown close or due mode.
+     * @throws \coding_exception on an unknown close, due or lock mode.
      */
-    public static function compute(\stdClass $settings, array $cmids, array $selected, bool $hasdue, \DateTimeZone $tz): array {
-        foreach (['closemode', 'duemode'] as $field) {
-            if (!in_array($settings->$field, self::MODES, true)) {
-                throw new \coding_exception("Unknown {$field}: " . $settings->$field);
+    public static function compute(
+        \stdClass $settings,
+        array $cmids,
+        array $selected,
+        bool $hasdue,
+        \DateTimeZone $tz,
+        bool $hasdates = true
+    ): array {
+        $modes = ['lockmode' => $settings->lockmode ?? self::MODE_NONE];
+        if ($hasdates) {
+            $modes = ['closemode' => $settings->closemode, 'duemode' => $settings->duemode] + $modes;
+        }
+        foreach ($modes as $field => $mode) {
+            if (!in_array($mode, self::MODES, true)) {
+                throw new \coding_exception("Unknown {$field}: " . $mode);
             }
         }
+        $lockmode = $modes['lockmode'];
 
         $chunksize = max(1, (int) $settings->activitiespersession);
         $sessionlength = (int) $settings->sessionlength;
@@ -113,6 +133,21 @@ final class schedule {
                     continue;
                 }
                 $timeopen = $window['start'];
+                $timelock = null;
+                if ($lockmode !== self::MODE_NONE) {
+                    $timelock = self::by_mode(
+                        $lockmode,
+                        $timeopen,
+                        (int) ($settings->lockdays ?? 0),
+                        (int) ($settings->lockdate ?? 0),
+                        $window['end'],
+                        $tz
+                    );
+                }
+                if (!$hasdates) {
+                    $dates[$cmid] = ['timeopen' => null, 'duedate' => null, 'timeclose' => null, 'timelock' => $timelock];
+                    continue;
+                }
                 $duedate = null;
                 if ($hasdue) {
                     $duedate = self::by_mode(
@@ -135,6 +170,7 @@ final class schedule {
                         $window['end'],
                         $tz
                     ),
+                    'timelock' => $timelock,
                 ];
             }
         }

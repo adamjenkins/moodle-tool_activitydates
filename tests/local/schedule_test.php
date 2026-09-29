@@ -248,6 +248,113 @@ final class schedule_test extends \basic_testcase {
     }
 
     /**
+     * The lock date follows the lock mode, with days counted from the open date.
+     */
+    public function test_lock_modes(): void {
+        $settings = self::settings(['lockmode' => schedule::MODE_DAYS, 'lockdays' => 10]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), false, self::tz());
+        $this->assertSame(self::ts('2030-01-17 09:00'), $result['dates'][11]['timelock']);
+        $this->assertSame(self::ts('2030-01-24 09:00'), $result['dates'][13]['timelock']);
+
+        $settings = self::settings(['lockmode' => schedule::MODE_SESSION]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), false, self::tz());
+        $this->assertSame(self::ts('2030-01-14 09:00'), $result['dates'][12]['timelock']);
+        $this->assertSame(self::ts('2030-01-21 09:00'), $result['dates'][14]['timelock']);
+
+        $lockdate = self::ts('2030-04-01 23:59');
+        $settings = self::settings(['lockmode' => schedule::MODE_DATE, 'lockdate' => $lockdate]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), false, self::tz());
+        foreach ([11, 12, 13, 14] as $cmid) {
+            $this->assertSame($lockdate, $result['dates'][$cmid]['timelock']);
+        }
+
+        $settings = self::settings(['lockmode' => schedule::MODE_NONE, 'lockdays' => 10, 'lockdate' => $lockdate]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), false, self::tz());
+        foreach ([11, 12, 13, 14] as $cmid) {
+            $this->assertNull($result['dates'][$cmid]['timelock']);
+            $this->assertNotNull($result['dates'][$cmid]['timeclose']);
+        }
+
+        // Unselected and unscheduled cms have no dates at all, lock included.
+        $settings = self::settings(['lockmode' => schedule::MODE_SESSION]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], [13 => true], false, self::tz());
+        $this->assertNull($result['dates'][11]);
+        $this->assertSame(self::ts('2030-01-14 09:00'), $result['dates'][13]['timelock']);
+    }
+
+    /**
+     * Without lock fields, or with lock mode none, there is no lock date.
+     */
+    public function test_lock_none_is_null(): void {
+        $result = schedule::compute(self::settings(), [11, 12, 13, 14], self::allselected(), true, self::tz());
+        foreach ([11, 12, 13, 14] as $cmid) {
+            $this->assertArrayHasKey('timelock', $result['dates'][$cmid]);
+            $this->assertNull($result['dates'][$cmid]['timelock']);
+        }
+
+        $settings = self::settings([
+            'lockmode' => schedule::MODE_NONE,
+            'lockdays' => 3,
+            'lockdate' => self::ts('2030-02-01 09:00'),
+        ]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], self::allselected(), true, self::tz());
+        foreach ([11, 12, 13, 14] as $cmid) {
+            $this->assertNull($result['dates'][$cmid]['timelock']);
+        }
+    }
+
+    /**
+     * A lock-only type gets only a lock date, and its close and due modes are not checked.
+     */
+    public function test_lock_only_type(): void {
+        $settings = self::settings([
+            'closemode' => 'weekly',
+            'duemode' => 'weekly',
+            'lockmode' => schedule::MODE_DAYS,
+            'lockdays' => 3,
+        ]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], [11 => true, 13 => true], true, self::tz(), false);
+
+        $this->assertSame(self::ts('2030-01-07 09:00'), $result['windows'][0]['start']);
+        foreach ([11 => '2030-01-10 09:00', 13 => '2030-01-17 09:00'] as $cmid => $lock) {
+            $this->assertSame(
+                ['timeopen' => null, 'duedate' => null, 'timeclose' => null, 'timelock' => self::ts($lock)],
+                $result['dates'][$cmid]
+            );
+        }
+        $this->assertNull($result['dates'][12]);
+        $this->assertNull($result['dates'][14]);
+
+        $settings = self::settings(['lockmode' => schedule::MODE_NONE]);
+        $result = schedule::compute($settings, [11, 12, 13, 14], [11 => true], false, self::tz(), false);
+        $this->assertSame(
+            ['timeopen' => null, 'duedate' => null, 'timeclose' => null, 'timelock' => null],
+            $result['dates'][11]
+        );
+    }
+
+    /**
+     * An unknown lock mode is a coding error, with or without open and close dates.
+     */
+    public function test_unknown_lock_mode_throws(): void {
+        foreach ([true, false] as $hasdates) {
+            try {
+                schedule::compute(
+                    self::settings(['lockmode' => 'weekly']),
+                    [11, 12, 13, 14],
+                    self::allselected(),
+                    false,
+                    self::tz(),
+                    $hasdates
+                );
+                $this->fail('No exception for an unknown lock mode, hasdates ' . (int) $hasdates);
+            } catch (\coding_exception $e) {
+                $this->assertStringContainsString('lockmode', $e->getMessage());
+            }
+        }
+    }
+
+    /**
      * An unknown close or due mode is a coding error.
      */
     public function test_unknown_mode_throws(): void {

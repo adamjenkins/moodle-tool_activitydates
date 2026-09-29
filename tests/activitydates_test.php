@@ -318,6 +318,8 @@ final class activitydates_test extends \advanced_testcase {
             // Due mode none: no due date where the column exists, null without it.
             'duedate' => activitydates::has_duedate('quiz') ? 0 : null,
             'timeclose' => strtotime('2030-01-08 09:00'),
+            // No lock mode in the settings: no lock date.
+            'timelock' => null,
         ], $byname['Quiz2']['proposed']);
         $this->assertSame(strtotime('2030-01-15 09:00'), $byname['Quiz4']['proposed']['timeclose']);
 
