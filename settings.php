@@ -27,7 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 if ($hassiteconfig) {
     $settings = new admin_settingpage('tool_activitydates_settings', new lang_string('pluginname', 'tool_activitydates'));
 
-    // Headings keep the two tabs' same-named defaults apart.
+    // Headings keep the dates defaults and the same-named grade-lock defaults apart.
     $settings->add(new admin_setting_heading(
         'tool_activitydates/datesettings',
         get_string('tabdates', 'tool_activitydates'),

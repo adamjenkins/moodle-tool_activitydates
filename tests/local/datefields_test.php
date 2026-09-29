@@ -51,7 +51,7 @@ final class datefields_test extends \basic_testcase {
     }
 
     /**
-     * Dates-tab inputs for one cm.
+     * Table inputs (open, due and close) for one cm.
      *
      * @param int $cmid the cm id.
      * @param string $open the timeopen input.
@@ -111,9 +111,11 @@ final class datefields_test extends \basic_testcase {
             'duedate' => 'errorinvaliddate',
         ]], $errors);
 
-        [$values, $errors] = datefields::validate_locks(['locktime' => [11 => '1970-01-01T00:00']], [11 => true], $utc);
+        $inputs = self::row(11, '', '', '');
+        $inputs['timelock'] = [11 => '1970-01-01T00:00'];
+        [$values, $errors] = datefields::validate_dates($inputs, [11 => true], false, true, $utc);
         $this->assertSame([], $values);
-        $this->assertSame([11 => ['locktime' => 'errorinvaliddate']], $errors);
+        $this->assertSame([11 => ['timelock' => 'errorinvaliddate']], $errors);
     }
 
     /**
@@ -323,33 +325,10 @@ final class datefields_test extends \basic_testcase {
         $this->assertSame([11], array_keys($values));
         $this->assertSame([], $errors);
 
-        [$values, $errors] = datefields::validate_locks(
-            ['locktime' => [11 => '2030-01-07T09:00', 999 => '2030-01-07T09:00', 998 => '']],
-            [11 => true],
-            self::tz()
-        );
+        $inputs['timelock'] = [11 => '2030-01-07T09:00', 999 => 'x', 998 => ''];
+        [$values, $errors] = datefields::validate_dates($inputs, [11 => true], true, true, self::tz());
         $this->assertSame([11], array_keys($values));
         $this->assertSame([], $errors);
-    }
-
-    /**
-     * A cleared or missing lock date is 0, which clears the lock; a date in the past is allowed.
-     */
-    public function test_cleared_lock_is_zero(): void {
-        $inputs = ['locktime' => [11 => '', 12 => 'x', 13 => '2001-01-01T00:00', 14 => '2030-01-07T09:00']];
-        [$values, $errors] = datefields::validate_locks(
-            $inputs,
-            [11 => true, 12 => true, 13 => true, 14 => true, 15 => true],
-            self::tz()
-        );
-
-        $this->assertSame([12 => ['locktime' => 'errorinvaliddate']], $errors);
-        $this->assertSame([
-            11 => ['locktime' => 0],
-            13 => ['locktime' => self::ts('2001-01-01 00:00')],
-            14 => ['locktime' => self::ts('2030-01-07 09:00')],
-            15 => ['locktime' => 0],
-        ], $values);
     }
 
     /**

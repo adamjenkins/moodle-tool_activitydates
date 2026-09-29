@@ -193,29 +193,4 @@ final class datefields {
         }
         return [$values, $errors];
     }
-
-    /**
-     * Validate the locks-tab rows.
-     *
-     * @param array $inputs ['locktime' => [cmid => string]].
-     * @param array $allowed cmid => true: selected cms of this course and type.
-     * @param \DateTimeZone $tz the user's timezone.
-     * @return array [values, errors]: values[cmid] = ['locktime' => int]; errors[cmid]['locktime'] = lang string key.
-     *   Cms not in $allowed are ignored. A date in the past is allowed. An empty or missing value is 0,
-     *   which clears the lock.
-     */
-    public static function validate_locks(array $inputs, array $allowed, \DateTimeZone $tz): array {
-        $values = [];
-        $errors = [];
-        foreach (array_keys($allowed) as $cmid) {
-            $cmid = (int) $cmid;
-            $lock = self::read($inputs, 'locktime', $cmid, $tz, []);
-            if ($lock === null) {
-                $errors[$cmid] = ['locktime' => 'errorinvaliddate'];
-            } else {
-                $values[$cmid] = ['locktime' => $lock];
-            }
-        }
-        return [$values, $errors];
-    }
 }
