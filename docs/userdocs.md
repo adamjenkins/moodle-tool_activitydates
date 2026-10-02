@@ -157,9 +157,9 @@ The collapsible **Saved configurations** section, above the Save buttons, keeps 
 
 - **Save configuration** saves everything the page shows under the name in **Configuration name**: the settings, the ticked activities, every date in the table, and the Hold and note ticks. It changes nothing in the course. Saving under a name the course already has replaces that configuration. If the settings changed since the last Preview, press **Preview** first, as for Save.
 - **Load** fills the page with a configuration, as it was saved, and changes nothing in the course: check the dates, then press a Save button to apply them. Its name fills **Configuration name**, so saving again replaces it. Activities deleted since it was saved are left out, and a notice says how many; activities added since show unticked, with their current dates. A configuration for an activity type the course no longer offers does not load.
-- **Delete** removes a configuration after you confirm. Activities and grades are not changed.
+- **Delete** removes a configuration after you confirm. Activities and grades are not changed. Delete shows only to users who can change every part the configuration holds (see below).
 
-Configurations belong to the course and are shared by everyone who can open the page there. A user with only one of the two capabilities saves and loads only their part: the date settings and dates with `:manage`, the grade-lock settings, Locked dates and notes with `:managelocks`. The other part keeps the course's current values.
+Configurations belong to the course and are shared by everyone who can open the page there. A user with only one of the two capabilities saves and loads only their part: the date settings, dates and ticked activities with `:manage`; the grade-lock settings, Locked dates and notes with `:managelocks`. When loading, the other part keeps the course's current values. When saving over an existing configuration, the other part keeps what the configuration already held, so neither user wipes the other's work. Such a user cannot delete a configuration that holds the other part.
 
 ## What Save actually does
 

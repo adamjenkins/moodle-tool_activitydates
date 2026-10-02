@@ -146,6 +146,89 @@ final class saved_configs_test extends \advanced_testcase {
         $this->assertSame([6], $locks['coursenotes']);
     }
 
+    public function test_snapshot_scopes_table_values_to_the_ticked_activities(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $settings = activitydates::settings_from_form($this->fromform(), $course->id, 0);
+        $rows = ['timeopen' => [5 => '2030-01-02T09:00', 6 => '2030-01-03T09:00', 7 => str_repeat('9', 33)]];
+        $hold = ['timeclose' => [5 => 1, 6 => 1, 99 => 1]];
+
+        $snapshot = saved_configs::snapshot($settings, [5, 7], $rows, $hold, [], [], true, true);
+        // 6 and 99 are not ticked; 7's input is longer than any date value.
+        $this->assertSame(['timeopen' => [5 => '2030-01-02T09:00']], $snapshot['rows']);
+        $this->assertSame(['timeclose' => [5 => 1]], $snapshot['hold']);
+    }
+
+    public function test_replace_keeps_the_parts_the_saver_cannot_edit(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $both = activitydates::settings_from_form($this->fromform(['sessionlength' => 3, 'lockmode' => 'date']), $course->id, 0);
+        saved_configs::save($course->id, 'Plan', saved_configs::snapshot(
+            $both,
+            [5],
+            ['timeopen' => [5 => '2030-01-02T09:00'], 'timelock' => [5 => '2030-02-01T09:00']],
+            ['timeclose' => [5 => 1], 'timelock' => [5 => 1]],
+            [5],
+            [5],
+            true,
+            true
+        ));
+        $read = fn(): array => saved_configs::decode($DB->get_record(saved_configs::TABLE, ['name' => 'Plan']));
+
+        // A :managelocks-only user replaces the lock part only.
+        $locks = activitydates::settings_from_form($this->fromform(['sessionlength' => 9, 'lockmode' => 'days']), $course->id, 0);
+        $this->assertTrue(saved_configs::save($course->id, 'Plan', saved_configs::snapshot(
+            $locks,
+            [6],
+            ['timelock' => [6 => '2030-03-01T09:00']],
+            [],
+            [6],
+            [],
+            false,
+            true
+        ), false, true));
+        $plan = $read();
+        $this->assertSame(3, $plan['settings']['sessionlength']);
+        $this->assertSame('days', $plan['settings']['lockmode']);
+        $this->assertSame(['5' => '2030-01-02T09:00'], $plan['rows']['timeopen']);
+        $this->assertSame(['6' => '2030-03-01T09:00'], $plan['rows']['timelock']);
+        $this->assertSame(['5' => 1], $plan['hold']['timeclose']);
+        $this->assertArrayNotHasKey('timelock', $plan['hold']);
+        $this->assertSame([5], $plan['selected']);
+        $this->assertSame([6], $plan['notes']);
+        $this->assertSame([], $plan['coursenotes']);
+
+        // A :manage-only user replaces the date part only.
+        $dates = activitydates::settings_from_form($this->fromform(['sessionlength' => 4, 'lockmode' => 'none']), $course->id, 0);
+        saved_configs::save($course->id, 'Plan', saved_configs::snapshot($dates, [7], [], [], [], [], true, false), true, false);
+        $plan = $read();
+        $this->assertSame(4, $plan['settings']['sessionlength']);
+        $this->assertSame('days', $plan['settings']['lockmode']);
+        $this->assertArrayNotHasKey('timeopen', $plan['rows']);
+        $this->assertSame(['6' => '2030-03-01T09:00'], $plan['rows']['timelock']);
+        $this->assertSame([7], $plan['selected']);
+        $this->assertSame([6], $plan['notes']);
+    }
+
+    public function test_only_a_user_who_may_edit_every_part_may_delete(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $settings = activitydates::settings_from_form($this->fromform(), $course->id, 0);
+        $record = fn(array $snapshot) => (object) ['data' => json_encode($snapshot)];
+        $datesonly = $record(saved_configs::snapshot($settings, [5], [], [], [], [], true, false));
+        $locksonly = $record(saved_configs::snapshot($settings, [5], [], [], [5], [], false, true));
+        $both = $record(saved_configs::snapshot($settings, [5], [], [], [], [], true, true));
+
+        $this->assertTrue(saved_configs::can_delete($datesonly, true, false));
+        $this->assertFalse(saved_configs::can_delete($datesonly, false, true));
+        $this->assertTrue(saved_configs::can_delete($locksonly, false, true));
+        $this->assertFalse(saved_configs::can_delete($locksonly, true, false));
+        $this->assertTrue(saved_configs::can_delete($both, true, true));
+        $this->assertFalse(saved_configs::can_delete($both, true, false));
+        $this->assertFalse(saved_configs::can_delete($both, false, true));
+    }
+
     public function test_form_data_keeps_current_values_the_user_cannot_edit(): void {
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course();
@@ -283,7 +366,14 @@ final class saved_configs_test extends \advanced_testcase {
 
         // Save what was loaded: only quiz1 gets dates; nothing refers to the deleted quiz2.
         $allowed = [(int) $quiz1->cmid => true];
-        [$values, $errors] = datefields::validate_dates($parts['rows'], $allowed, false, false, $tz, datefields::known_values($tabledata));
+        [$values, $errors] = datefields::validate_dates(
+            $parts['rows'],
+            $allowed,
+            false,
+            false,
+            $tz,
+            datefields::known_values($tabledata)
+        );
         $this->assertSame([], $errors);
         $submitted = (object) ((array) $this->fromform() + ['activitygroup' => ['activity_' . $quiz1->cmid => 1]]);
         $manager->save($submitted, $course->id, $tabledata, $values, [], [], $parts['hold'], true, false, true);

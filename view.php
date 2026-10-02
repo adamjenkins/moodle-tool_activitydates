@@ -59,6 +59,10 @@ navigation_node::override_active_url($url);
 $deleteid = optional_param('deleteconfig', 0, PARAM_INT);
 if ($deleteid) {
     $config = saved_configs::get($courseid, $deleteid);
+    // Only a user who may edit every part the configuration holds may delete it.
+    if (!saved_configs::can_delete($config, $canmanage, $canlocks)) {
+        throw new moodle_exception('errorconfigdelete', 'tool_activitydates', $url);
+    }
     if (optional_param('confirm', 0, PARAM_BOOL)) {
         require_sesskey();
         saved_configs::delete($courseid, $deleteid);
@@ -147,6 +151,11 @@ $mform = new activitydates_form($url->out(false), [
     'hasdates' => $hasdates,
     'hasdue' => $hasdue,
     'savedconfigs' => saved_configs::list($courseid),
+    // The configurations this user may delete (see saved_configs::can_delete()).
+    'deletableconfigs' => array_keys(array_filter(
+        saved_configs::list($courseid, true),
+        fn(stdClass $config): bool => saved_configs::can_delete($config, $canmanage, $canlocks)
+    )),
 ]);
 
 if ($mform->is_cancelled()) {
@@ -230,7 +239,7 @@ if ($fromform = $mform->get_data()) {
                 $coursenotecmids ?? [],
                 $canmanage,
                 $canlocks
-            ));
+            ), $canmanage, $canlocks);
             $notice = $replaced ? 'configreplaced' : 'configsavednotice';
             \core\notification::success(get_string($notice, 'tool_activitydates', s($name)));
             // Re-show the posted table as it was saved.

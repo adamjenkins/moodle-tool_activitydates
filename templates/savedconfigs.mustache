@@ -31,6 +31,7 @@
       * name string - the configuration's name
       * timemodified string - when it was last saved, formatted
       * loadurl string - the URL that loads it into the page
+      * candelete bool - whether this user may delete it (they may edit every part it holds)
       * deleteurl string - the URL that asks to delete it
 
     Example context (json):
@@ -38,7 +39,7 @@
         "hasconfigs": true,
         "configs": [
             {"name": "Reading quizzes, autumn", "timemodified": "2/10/26, 09:15",
-                "loadurl": "#", "deleteurl": "#"}
+                "loadurl": "#", "candelete": true, "deleteurl": "#"}
         ]
     }
 }}
@@ -61,9 +62,11 @@
                             <a class="btn btn-secondary btn-sm" href="{{loadurl}}">
                                 {{#str}}load, tool_activitydates{{/str}}<span class="visually-hidden"> {{name}}</span>
                             </a>
+                            {{#candelete}}
                             <a class="btn btn-outline-danger btn-sm ms-1" href="{{deleteurl}}">
                                 {{#str}}delete{{/str}}<span class="visually-hidden"> {{name}}</span>
                             </a>
+                            {{/candelete}}
                         </td>
                     </tr>
                 {{/configs}}

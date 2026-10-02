@@ -52,15 +52,23 @@ final class saved_configs {
     /** @var string[] the table's date fields. */
     const FIELDS = ['timeopen', 'duedate', 'timeclose', 'timelock'];
 
+    /** @var string[] the table's date fields edited with tool/activitydates:manage (timelock needs :managelocks). */
+    const DATEFIELDS = ['timeopen', 'duedate', 'timeclose'];
+
+    /** @var int the longest table input kept: a datetime-local value is 16 characters. */
+    const MAXINPUT = 32;
+
     /**
      * The course's configurations, by name.
      *
      * @param int $courseid the course id.
-     * @return \stdClass[] id, name and timemodified, keyed by id.
+     * @param bool $withdata whether to include each one's snapshot (data).
+     * @return \stdClass[] id, name and timemodified (and data), keyed by id.
      */
-    public static function list(int $courseid): array {
+    public static function list(int $courseid, bool $withdata = false): array {
         global $DB;
-        return $DB->get_records(self::TABLE, ['courseid' => $courseid], 'name ASC, id ASC', 'id, name, timemodified');
+        $fields = 'id, name, timemodified' . ($withdata ? ', data' : '');
+        return $DB->get_records(self::TABLE, ['courseid' => $courseid], 'name ASC, id ASC', $fields);
     }
 
     /**
@@ -89,20 +97,37 @@ final class saved_configs {
     /**
      * Save a snapshot under a name, replacing the course's configuration of that name.
      *
+     * A replace keeps the parts of the existing configuration that the saving user may
+     * not edit (see merge()), so a user with one of the two capabilities never wipes
+     * what a user with the other saved.
+     *
      * @param int $courseid the course id.
      * @param string $name the name, already cleaned (see clean_name()).
      * @param array $snapshot from snapshot().
+     * @param bool $canmanage whether the user has tool/activitydates:manage.
+     * @param bool $canlocks whether the user has tool/activitydates:managelocks.
      * @return bool true when a configuration of that name was replaced.
      */
-    public static function save(int $courseid, string $name, array $snapshot): bool {
+    public static function save(
+        int $courseid,
+        string $name,
+        array $snapshot,
+        bool $canmanage = true,
+        bool $canlocks = true
+    ): bool {
         global $DB;
         $now = time();
-        $data = json_encode($snapshot);
         $existing = $DB->get_record(self::TABLE, ['courseid' => $courseid, 'name' => $name]);
         if ($existing) {
-            $DB->update_record(self::TABLE, (object) ['id' => $existing->id, 'data' => $data, 'timemodified' => $now]);
+            $merged = self::merge(self::decode($existing), $snapshot, $canmanage, $canlocks);
+            $DB->update_record(self::TABLE, (object) [
+                'id' => $existing->id,
+                'data' => json_encode($merged),
+                'timemodified' => $now,
+            ]);
             return true;
         }
+        $data = json_encode($snapshot);
         $DB->insert_record(self::TABLE, (object) [
             'courseid' => $courseid,
             'name' => $name,
@@ -111,6 +136,66 @@ final class saved_configs {
             'timemodified' => $now,
         ]);
         return false;
+    }
+
+    /**
+     * A replacing snapshot, with the existing configuration's parts the saver may not edit.
+     *
+     * Without :manage the existing date settings, open/due/close inputs and Hold ticks and
+     * the ticked activities are kept (a user without :manage does not change the dates
+     * selection on Save either); without :managelocks the existing lock settings, Locked
+     * inputs and Hold ticks and the note ticks are kept.
+     *
+     * @param array $existing the existing configuration, from decode().
+     * @param array $snapshot the saver's snapshot, from snapshot().
+     * @param bool $canmanage whether the saver has tool/activitydates:manage.
+     * @param bool $canlocks whether the saver has tool/activitydates:managelocks.
+     * @return array the snapshot to store.
+     */
+    public static function merge(array $existing, array $snapshot, bool $canmanage, bool $canlocks): array {
+        $keep = array_merge($canmanage ? [] : self::DATESETTINGS, $canlocks ? [] : self::LOCKSETTINGS);
+        foreach ($keep as $name) {
+            if (array_key_exists($name, $existing['settings'])) {
+                $snapshot['settings'][$name] = $existing['settings'][$name];
+            }
+        }
+        $keepfields = array_merge($canmanage ? [] : self::DATEFIELDS, $canlocks ? [] : ['timelock']);
+        foreach ($keepfields as $field) {
+            foreach (['rows', 'hold'] as $part) {
+                unset($snapshot[$part][$field]);
+                if (!empty($existing[$part][$field]) && is_array($existing[$part][$field])) {
+                    $snapshot[$part][$field] = $existing[$part][$field];
+                }
+            }
+        }
+        if (!$canmanage) {
+            $snapshot['selected'] = $existing['selected'];
+        }
+        if (!$canlocks) {
+            $snapshot['notes'] = $existing['notes'];
+            $snapshot['coursenotes'] = $existing['coursenotes'];
+        }
+        return $snapshot;
+    }
+
+    /**
+     * Whether a user may delete a configuration: they must be able to edit every part it
+     * holds (the date part needs :manage, the lock part :managelocks).
+     *
+     * @param \stdClass $record a configuration record.
+     * @param bool $canmanage whether the user has tool/activitydates:manage.
+     * @param bool $canlocks whether the user has tool/activitydates:managelocks.
+     * @return bool
+     */
+    public static function can_delete(\stdClass $record, bool $canmanage, bool $canlocks): bool {
+        $snapshot = self::decode($record);
+        $holds = fn(array $settings, array $fields): bool =>
+            (bool) array_intersect_key($snapshot['settings'], array_flip($settings))
+            || (bool) array_filter(array_intersect_key($snapshot['rows'], array_flip($fields)))
+            || (bool) array_filter(array_intersect_key($snapshot['hold'], array_flip($fields)));
+        $hasdates = $holds(self::DATESETTINGS, self::DATEFIELDS);
+        $haslocks = $holds(self::LOCKSETTINGS, ['timelock']) || $snapshot['notes'] || $snapshot['coursenotes'];
+        return (!$hasdates || $canmanage) && (!$haslocks || $canlocks);
     }
 
     /**
@@ -131,8 +216,8 @@ final class saved_configs {
     /**
      * The snapshot of what the page posted, limited to what the user may edit.
      *
-     * The table parts are passed already limited (view.php reads only the inputs and
-     * Hold ticks the user may set).
+     * The table parts are passed already limited to the fields the user may set (view.php
+     * reads only those); here they are limited to the ticked activities as well.
      *
      * @param \stdClass $settings settings from activitydates::settings_from_form().
      * @param int[] $selected the ticked cmids.
@@ -163,16 +248,19 @@ final class saved_configs {
             $saved['schedulefinish'] = 0;
         }
 
+        // Table inputs and Hold ticks only for the ticked activities (the only rows whose
+        // inputs are editable), and no input longer than a date value can be.
+        $ticked = array_fill_keys(array_map('intval', $selected), true);
         $cleanrows = [];
         $cleanhold = [];
         foreach (self::FIELDS as $field) {
             foreach ($rows[$field] ?? [] as $cmid => $value) {
-                if (is_string($value)) {
+                if (isset($ticked[(int) $cmid]) && is_string($value) && \core_text::strlen($value) <= self::MAXINPUT) {
                     $cleanrows[$field][(int) $cmid] = $value;
                 }
             }
-            foreach ($hold[$field] ?? [] as $cmid => $ticked) {
-                if (!empty($ticked)) {
+            foreach ($hold[$field] ?? [] as $cmid => $holdtick) {
+                if (isset($ticked[(int) $cmid]) && !empty($holdtick)) {
                     $cleanhold[$field][(int) $cmid] = 1;
                 }
             }

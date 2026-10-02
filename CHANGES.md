@@ -5,7 +5,8 @@
 - New: **saved configurations.** Save the whole page under a name: the settings,
   the ticked activities, every date in the table and the Hold and note ticks.
   Load fills the page from one without changing the course; Delete removes one
-  after a confirmation. Configurations belong to the course. Activities deleted
+  after a confirmation. A user with only one of the two capabilities saves and
+  loads only their part, and saving over a configuration keeps the other part. Configurations belong to the course. Activities deleted
   since saving are left out when it loads, and activities added since load
   unticked.
 - New: a **Filter by name** box above the table. It shows only the activities

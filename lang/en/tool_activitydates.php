@@ -60,6 +60,7 @@ $string['duemode'] = 'Due dates';
 $string['duemode_help'] = 'How the due date of each scheduled activity is set. "After a number of days" makes it due that many days after it opens. "At the end of this session" makes it due when the next session opens. "All on a date" makes every activity due at the same date and time. "No date" leaves it without a due date. Due dates must be after the open date and no later than the close date.';
 $string['errorclosebeforeopen'] = 'The close date must be after the open date.';
 $string['errorclosedatebeforestart'] = 'The close date must be after the start date.';
+$string['errorconfigdelete'] = 'You cannot delete this configuration: it holds settings you are not allowed to change.';
 $string['errorconfigname'] = 'Enter a name for the configuration.';
 $string['errordueafterclose'] = 'The due date cannot be after the close date.';
 $string['errorduebeforeopen'] = 'The due date must be after the open date.';

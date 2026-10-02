@@ -207,6 +207,7 @@ class activitydates_form extends \moodleform {
         $mform = $this->_form;
         $courseid = (int) $this->_customdata['courseid'];
         $configs = $this->_customdata['savedconfigs'] ?? [];
+        $deletable = array_fill_keys($this->_customdata['deletableconfigs'] ?? [], true);
 
         $mform->addElement('header', 'savedconfigsheader', get_string('savedconfigs', 'tool_activitydates'));
         $mform->setExpanded('savedconfigsheader', false);
@@ -219,6 +220,7 @@ class activitydates_form extends \moodleform {
                 'name' => $config->name,
                 'timemodified' => userdate($config->timemodified, get_string('strftimedatetimeshort', 'core_langconfig')),
                 'loadurl' => $url(['loadconfig' => $config->id, 'sesskey' => sesskey()]),
+                'candelete' => isset($deletable[$config->id]),
                 'deleteurl' => $url(['deleteconfig' => $config->id]),
             ];
         }
