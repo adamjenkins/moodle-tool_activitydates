@@ -25,6 +25,7 @@
 namespace tool_activitydates\form;
 
 use tool_activitydates\activitydates;
+use tool_activitydates\local\saved_configs;
 use tool_activitydates\local\schedule;
 
 defined('MOODLE_INTERNAL') || die();
@@ -187,9 +188,55 @@ class activitydates_form extends \moodleform {
             $mform->setDefault('resetunselected', $defaults->resetunselected);
         }
 
+        $this->add_saved_configs_elements();
+
         // The buttons stay outside every collapsible section
         // (tool_activitydates\local\action_buttons closes the last header).
         $this->add_action_buttons();
+    }
+
+    /**
+     * Add the Saved configurations section: the course's configurations, each with
+     * Load and Delete links, and a name box with a Save configuration button.
+     *
+     * Load and Delete are links (view.php's loadconfig and deleteconfig), so loading
+     * fills the form like a page load; Save configuration submits the form.
+     */
+    protected function add_saved_configs_elements(): void {
+        global $OUTPUT;
+        $mform = $this->_form;
+        $courseid = (int) $this->_customdata['courseid'];
+        $configs = $this->_customdata['savedconfigs'] ?? [];
+        $deletable = array_fill_keys($this->_customdata['deletableconfigs'] ?? [], true);
+
+        $mform->addElement('header', 'savedconfigsheader', get_string('savedconfigs', 'tool_activitydates'));
+        $mform->setExpanded('savedconfigsheader', false);
+
+        $url = fn(array $params) => (new \moodle_url('/admin/tool/activitydates/view.php', ['courseid' => $courseid] + $params))
+            ->out(false);
+        $list = [];
+        foreach ($configs as $config) {
+            $list[] = [
+                'name' => $config->name,
+                'timemodified' => userdate($config->timemodified, get_string('strftimedatetimeshort', 'core_langconfig')),
+                'loadurl' => $url(['loadconfig' => $config->id, 'sesskey' => sesskey()]),
+                'candelete' => isset($deletable[$config->id]),
+                'deleteurl' => $url(['deleteconfig' => $config->id]),
+            ];
+        }
+        $mform->addElement(
+            'static',
+            'savedconfigslist',
+            '',
+            $OUTPUT->render_from_template('tool_activitydates/savedconfigs', ['configs' => $list, 'hasconfigs' => !empty($list)])
+        );
+
+        $group = [];
+        $group[] = $mform->createElement('text', 'configname', get_string('configname', 'tool_activitydates'), ['size' => 30]);
+        $group[] = $mform->createElement('submit', 'saveconfig', get_string('saveconfig', 'tool_activitydates'));
+        $mform->addGroup($group, 'configgroup', get_string('configname', 'tool_activitydates'), [' '], false);
+        $mform->setType('configname', PARAM_TEXT);
+        $mform->addHelpButton('configgroup', 'savedconfigs', 'tool_activitydates');
     }
 
     /**
@@ -353,6 +400,10 @@ class activitydates_form extends \moodleform {
         $modules = $this->_customdata['modules'];
         if (!array_key_exists($data['modtype'], $modules)) {
             $errors['modtypegroup'] = get_string('activitytype', 'tool_activitydates');
+        }
+
+        if (!empty($data['saveconfig']) && saved_configs::clean_name((string) ($data['configname'] ?? '')) === '') {
+            $errors['configgroup'] = get_string('errorconfigname', 'tool_activitydates');
         }
 
         $modulecount = count($this->modules);

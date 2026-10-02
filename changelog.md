@@ -4,6 +4,19 @@ All notable changes to `tool_activitydates` are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Saved configurations: named per-course snapshots of the page (settings,
+  ticked activities, table dates, Hold and note ticks) in the new table
+  `tool_activitydates_saved`, with Save configuration, Load and Delete in a
+  Saved configurations section. Loading writes nothing; it keeps only the
+  parts the user may edit and the activities the course still has. Saving over
+  an existing configuration keeps the parts the saver may not edit, and only a
+  user who may edit every part a configuration holds may delete it. Table
+  values are saved only for the ticked activities. Deleted with the course.
+- A Filter by name box above the table (client side). The select-all and the
+  note select-alls act on the rows it shows only.
+
 ### Fixed
 
 - `docs/userdocs.md` no longer lists Lesson, Workshop and Chat as eligible

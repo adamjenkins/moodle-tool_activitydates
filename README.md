@@ -21,6 +21,8 @@ The table's **Dates** column stacks each activity's open, due, close and locked 
 
 Activities left unselected are untouched by default, but can optionally be hidden and/or have their dates (including the due date) reset.
 
+A **Filter by name** box above the table shows only the activities whose name contains the text typed, and the select-all boxes then act on those rows only. **Saved configurations** keep named copies of the whole page per course (settings, ticks, table dates and Hold ticks): **Load** fills the page from one without changing the course, **Delete** removes one. Activities deleted since a configuration was saved are left out when it loads; activities added since load unticked.
+
 ## Grade locks
 
 A collapsible **Grade locks** section on the same page schedules gradebook lock dates. The lock date uses the same schedule and options as the close date (a number of days after opening, the end of the session, or one common date), with **No lock** in place of "no date". No lock is the default: it leaves existing grade locks alone, and the section stays collapsed while it is selected. The **Locked** date in the table's Dates column shows each activity's current lock date, read live from the gradebook, and after Preview the proposed one. Moodle's own gradebook lock task (`\core\task\grade_cron_task`) locks each grade item when its date passes; the plugin stores no lock dates of its own, only the course's settings and selections. The activity type list also offers graded types without open/close dates, such as assignments, for their lock dates only. An option clears the lock date of every unticked activity of the type.

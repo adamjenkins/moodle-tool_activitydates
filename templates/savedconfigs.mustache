@@ -1,0 +1,79 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template tool_activitydates/savedconfigs
+
+    The course's saved configurations, each with a Load and a Delete link.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * hasconfigs bool - whether the course has any configuration
+    * configs array - one entry per configuration, sorted by name
+      * name string - the configuration's name
+      * timemodified string - when it was last saved, formatted
+      * loadurl string - the URL that loads it into the page
+      * candelete bool - whether this user may delete it (they may edit every part it holds)
+      * deleteurl string - the URL that asks to delete it
+
+    Example context (json):
+    {
+        "hasconfigs": true,
+        "configs": [
+            {"name": "Reading quizzes, autumn", "timemodified": "2/10/26, 09:15",
+                "loadurl": "#", "candelete": true, "deleteurl": "#"}
+        ]
+    }
+}}
+<div data-region="tool_activitydates-savedconfigs">
+    {{#hasconfigs}}
+        <table class="table table-sm generaltable w-auto">
+            <thead>
+                <tr>
+                    <th scope="col">{{#str}}configname, tool_activitydates{{/str}}</th>
+                    <th scope="col">{{#str}}configsaved, tool_activitydates{{/str}}</th>
+                    <th scope="col"><span class="visually-hidden">{{#str}}actions{{/str}}</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#configs}}
+                    <tr>
+                        <td>{{name}}</td>
+                        <td>{{timemodified}}</td>
+                        <td class="text-nowrap">
+                            <a class="btn btn-secondary btn-sm" href="{{loadurl}}">
+                                {{#str}}load, tool_activitydates{{/str}}<span class="visually-hidden"> {{name}}</span>
+                            </a>
+                            {{#candelete}}
+                            <a class="btn btn-outline-danger btn-sm ms-1" href="{{deleteurl}}">
+                                {{#str}}delete{{/str}}<span class="visually-hidden"> {{name}}</span>
+                            </a>
+                            {{/candelete}}
+                        </td>
+                    </tr>
+                {{/configs}}
+            </tbody>
+        </table>
+    {{/hasconfigs}}
+    {{^hasconfigs}}
+        <p class="text-muted mb-0">{{#str}}nosavedconfigs, tool_activitydates{{/str}}</p>
+    {{/hasconfigs}}
+</div>

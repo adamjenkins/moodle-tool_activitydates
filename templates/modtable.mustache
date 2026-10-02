@@ -34,6 +34,10 @@
     * data-cmid, data-field - on each date input and its hint
     * data-region="tool_activitydates-hint" - the inline hint after each date input
     * data-rowcontrol="cmid" - a checkbox enabled only while its row is selected
+    * data-region="tool_activitydates-filter" - the name filter box
+    * data-region="tool_activitydates-activityrow" with data-name - an activity's row
+    * data-region="tool_activitydates-sessionrow" - a session header row
+    * data-region="tool_activitydates-nomatch" - the row shown when the filter matches nothing
 
     Context variables required for this template:
     * formid string - the id of the moodleform the inputs submit with
@@ -43,6 +47,7 @@
     * modname string - the module type name (e.g. quiz), used in the activity links
     * showmarks bool - whether to show the Marks column
     * colcount int - number of visible columns, drives the session header colspan
+    * hasrows bool - whether the table has rows, which shows the name filter
     * tabledata array - list of header and activity rows
       * isheader bool - true for a session header row
       * dates object - the session window (absent when the session is not scheduled)
@@ -93,6 +98,7 @@
         "modname": "quiz",
         "showmarks": true,
         "colcount": 7,
+        "hasrows": true,
         "tabledata": [
             {
                 "isheader": true,
@@ -160,9 +166,16 @@
     <div role="status">
         <div data-region="tool_activitydates-stale" class="alert alert-warning" hidden>{{#str}}tablestale, tool_activitydates{{/str}}</div>
     </div>
+    {{#hasrows}}
+    <div class="mb-2">
+        <label class="form-label" for="tool_activitydates_filter">{{#str}}filterbyname, tool_activitydates{{/str}}</label>
+        <input type="search" class="form-control w-auto" id="tool_activitydates_filter" data-region="tool_activitydates-filter"
+            autocomplete="off" aria-controls="tool_activitydates_table">
+    </div>
+    {{/hasrows}}
     <div class="card">
         <div class="table-responsive">
-            <table class="table table-hover table-bordered table-striped">
+            <table class="table table-hover table-bordered table-striped" id="tool_activitydates_table">
                 <thead>
                     <tr>
                         <th scope="col">
@@ -205,9 +218,14 @@
                             <td colspan="{{colcount}}">{{#str}}nomodulesincourse, tool_activitydates{{/str}}</td>
                         </tr>
                     {{/tabledata}}
+                    {{#hasrows}}
+                        <tr data-region="tool_activitydates-nomatch" hidden>
+                            <td colspan="{{colcount}}">{{#str}}nofiltermatch, tool_activitydates{{/str}}</td>
+                        </tr>
+                    {{/hasrows}}
                     {{#tabledata}}
                         {{#isheader}}
-                            <tr>
+                            <tr data-region="tool_activitydates-sessionrow">
                                 <td colspan="{{colcount}}">
                                     {{#dates}}
                                         {{#str}}session, tool_activitydates{{/str}} {{sessionnumber}}:
@@ -222,7 +240,7 @@
                             </tr>
                         {{/isheader}}
                         {{^isheader}}
-                            <tr>
+                            <tr data-region="tool_activitydates-activityrow" data-name="{{name}}">
                                 <td>
                                     <input type="checkbox" name="select" id="id_cmid_{{id}}"
                                         aria-label="{{name}}" {{selected}}>

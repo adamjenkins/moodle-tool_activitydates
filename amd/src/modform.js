@@ -16,8 +16,9 @@
 /**
  * Mirror the visible activity checkboxes into the hidden form checkboxes,
  * enable each row's Hold and note checkboxes only while the row is selected,
- * drive the select-all and the two note select-all checkboxes, and preview
- * automatically when the activity type is changed.
+ * drive the select-all and the two note select-all checkboxes, filter the table's
+ * rows by activity name, and preview automatically when the activity type is
+ * changed. The select-alls act on the rows the filter shows only.
  *
  * @module     tool_activitydates/modform
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -38,21 +39,48 @@ export const init = () => {
         });
     }
 
+    // Enter in the configuration name saves the configuration. Otherwise it would press
+    // the form's first submit button, Preview, which discards the table's edits.
+    const configName = document.getElementById('id_configname');
+    const saveConfigButton = document.getElementById('id_saveconfig');
+    if (configName && saveConfigButton) {
+        configName.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (!saveConfigButton.disabled) {
+                    saveConfigButton.click();
+                }
+            }
+        });
+    }
+
+    /**
+     * Whether an element's table row is shown (not hidden by the name filter).
+     *
+     * @param {HTMLElement} element an element in the table.
+     * @returns {boolean}
+     */
+    const shown = element => {
+        const row = element.closest('tr');
+        return !row || !row.hidden;
+    };
+
     // The Grade-lock note column's header checkboxes tick or untick the activity-page
-    // or the course-page note of every selected row (the others are disabled).
+    // or the course-page note of every selected row the filter shows (the others are
+    // disabled or hidden).
     const noteToggles = [
         ['id_togglenotes', 'shownote_cmids[]'],
         ['id_togglecoursenotes', 'shownotecourse_cmids[]'],
     ].map(([toggleid, name]) => [document.getElementById(toggleid), name]).filter(([toggle]) => toggle);
 
     /**
-     * Tick each note header checkbox only when every enabled note checkbox of its
-     * kind is ticked, and there is at least one.
+     * Tick each note header checkbox only when every enabled, shown note checkbox of
+     * its kind is ticked, and there is at least one.
      */
     const syncNoteToggles = () => {
         noteToggles.forEach(([toggle, name]) => {
             const enabled = Array.from(document.querySelectorAll('input[name="' + name + '"]'))
-                .filter(checkbox => !checkbox.disabled);
+                .filter(checkbox => !checkbox.disabled && shown(checkbox));
             toggle.checked = enabled.length > 0 && enabled.every(checkbox => checkbox.checked);
         });
     };
@@ -60,7 +88,7 @@ export const init = () => {
     noteToggles.forEach(([toggle, name]) => {
         toggle.addEventListener('click', e => {
             document.querySelectorAll('input[name="' + name + '"]').forEach(checkbox => {
-                if (!checkbox.disabled) {
+                if (!checkbox.disabled && shown(checkbox)) {
                     checkbox.checked = e.target.checked;
                 }
             });
@@ -98,14 +126,18 @@ export const init = () => {
         return;
     }
 
+    // The table checkboxes of the rows the filter shows, and each one's hidden form checkbox.
+    const shownRowCheckboxes = () => Array.from(document.querySelectorAll("input[id^='id_cmid_']")).filter(shown);
+    const formCheckbox = checkbox => document.getElementById('id_activitygroup_activity_' + checkbox.id.split('_')[2]);
+
     selectAllCheckBox.addEventListener('click', e => {
-        // Hidden form checkboxes.
-        document.querySelectorAll("[id^='id_activitygroup_activity_']").forEach(checkbox => {
-            checkbox.checked = e.target.checked ? true : false;
-        });
-        // Visible table checkboxes.
-        document.querySelectorAll("[id^='id_cmid_']").forEach(checkbox => {
-            checkbox.checked = e.target.checked ? true : false;
+        // Only the rows the filter shows; hidden rows keep their ticks.
+        shownRowCheckboxes().forEach(checkbox => {
+            checkbox.checked = e.target.checked;
+            const hidden = formCheckbox(checkbox);
+            if (hidden) {
+                hidden.checked = e.target.checked;
+            }
             setRowControls(checkbox.id.split('_')[2], checkbox.checked);
         });
     });
@@ -131,15 +163,46 @@ export const init = () => {
     }
 
     /**
-     * Tick the select-all checkbox only when every activity is selected.
+     * Tick the select-all checkbox only when every activity the filter shows is selected.
      */
     function configureSelectAll() {
-        let allchecked = true;
-        document.querySelectorAll("[id^='id_activitygroup_activity_']").forEach(checkbox => {
-            if (checkbox.checked === false) {
-                allchecked = false;
+        const rows = shownRowCheckboxes();
+        selectAllCheckBox.checked = rows.length > 0 && rows.every(checkbox => checkbox.checked);
+    }
+
+    // Filter the rows by activity name, ignoring case. A session row shows while any of
+    // its activities does.
+    const filter = document.querySelector('[data-region="tool_activitydates-filter"]');
+    const noMatch = document.querySelector('[data-region="tool_activitydates-nomatch"]');
+    if (filter) {
+        filter.addEventListener('input', () => {
+            const text = filter.value.trim().toLowerCase();
+            let session = null;
+            let sessionShown = false;
+            let anyShown = false;
+            const closeSession = () => {
+                if (session) {
+                    session.hidden = !sessionShown;
+                }
+            };
+            document.querySelectorAll('[data-region="tool_activitydates-sessionrow"], ' +
+                    '[data-region="tool_activitydates-activityrow"]').forEach(row => {
+                if (row.dataset.region === 'tool_activitydates-sessionrow') {
+                    closeSession();
+                    session = row;
+                    sessionShown = false;
+                    return;
+                }
+                row.hidden = text !== '' && !(row.dataset.name || '').toLowerCase().includes(text);
+                sessionShown = sessionShown || !row.hidden;
+                anyShown = anyShown || !row.hidden;
+            });
+            closeSession();
+            if (noMatch) {
+                noMatch.hidden = anyShown;
             }
+            configureSelectAll();
+            syncNoteToggles();
         });
-        selectAllCheckBox.checked = allchecked;
     }
 };

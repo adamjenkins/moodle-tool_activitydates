@@ -168,5 +168,24 @@ function xmldb_tool_activitydates_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026092902, 'tool', 'activitydates');
     }
 
+    if ($oldversion < 2026100200) {
+        // Named configurations of the page, saved per course.
+        $table = new xmldb_table('tool_activitydates_saved');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('name', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('data', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('fk_course', XMLDB_KEY_FOREIGN, ['courseid'], 'course', ['id']);
+        $table->add_index('coursename', XMLDB_INDEX_UNIQUE, ['courseid', 'name']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 2026100200, 'tool', 'activitydates');
+    }
+
     return true;
 }
