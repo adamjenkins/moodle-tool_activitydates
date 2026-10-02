@@ -23,8 +23,9 @@
  * loads, so proposals that break a row rule are flagged straight after
  * Preview, and Enter in a table date does not submit the form (it would
  * press Preview and discard the table's edits). Disabled dates (fields the
- * user cannot change) are not checked, and the Fix checkboxes are not watched:
- * fixing a date does not make the table stale.
+ * user cannot change) are not checked, and the Hold checkboxes are not watched:
+ * holding a date does not make the table stale. Save configuration is disabled
+ * with the Save buttons: a configuration is saved from an up-to-date table.
  *
  * @module     tool_activitydates/previewtable
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
@@ -42,7 +43,7 @@ const ERRORKEYS = [
 ];
 
 /** @var {string[]} The ids of the Save buttons disabled while the table is stale. */
-const SAVEBUTTONIDS = ['id_submitbutton', 'id_submitbutton2'];
+const SAVEBUTTONIDS = ['id_submitbutton', 'id_submitbutton2', 'id_saveconfig'];
 
 /**
  * Initialise the stale bar and inline hints for one form's preview table.

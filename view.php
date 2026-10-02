@@ -31,6 +31,7 @@ use tool_activitydates\form\activitydates_form;
 use tool_activitydates\local\datefields;
 use tool_activitydates\local\fingerprint;
 use tool_activitydates\local\pagetypes;
+use tool_activitydates\local\saved_configs;
 use tool_activitydates\local\schedule;
 use tool_activitydates\output\preview_rows;
 
@@ -54,6 +55,31 @@ $PAGE->set_title(get_string('pluginname', 'tool_activitydates'));
 $PAGE->set_heading($course->fullname);
 navigation_node::override_active_url($url);
 
+// Delete a saved configuration: ask first, then delete on the confirmed, sesskey'd request.
+$deleteid = optional_param('deleteconfig', 0, PARAM_INT);
+if ($deleteid) {
+    $config = saved_configs::get($courseid, $deleteid);
+    if (optional_param('confirm', 0, PARAM_BOOL)) {
+        require_sesskey();
+        saved_configs::delete($courseid, $deleteid);
+        redirect(
+            $url,
+            get_string('configdeleted', 'tool_activitydates', s($config->name)),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
+    }
+    echo $OUTPUT->header();
+    echo $OUTPUT->heading(get_string('savedconfigs', 'tool_activitydates'));
+    echo $OUTPUT->confirm(
+        get_string('deleteconfigconfirm', 'tool_activitydates', s($config->name)),
+        new moodle_url($url, ['deleteconfig' => $deleteid, 'confirm' => 1, 'sesskey' => sesskey()]),
+        $url
+    );
+    echo $OUTPUT->footer();
+    exit;
+}
+
 // The types with dates (for :manage) and the graded types (for :managelocks).
 $types = pagetypes::for_course($courseid, $canmanage, $canlocks);
 
@@ -68,10 +94,25 @@ if (empty($types)) {
     exit;
 }
 
-// Resolve the module type to display: an explicit valid request wins, then the
-// course's saved type if still offered, otherwise the first offered type.
+// Load a saved configuration (a sesskey'd link): the page shows it and writes nothing.
+$snapshot = null;
+$loadedconfig = null;
+$loadid = optional_param('loadconfig', 0, PARAM_INT);
+if ($loadid) {
+    require_sesskey();
+    $loadedconfig = saved_configs::get($courseid, $loadid);
+    $snapshot = saved_configs::decode($loadedconfig);
+    if (!array_key_exists($snapshot['modtype'], $types)) {
+        \core\notification::error(get_string('configwrongtype', 'tool_activitydates'));
+        $snapshot = null;
+        $loadedconfig = null;
+    }
+}
+
+// Resolve the module type to display: a loaded configuration's type, then an explicit
+// valid request, then the course's saved type if still offered, otherwise the first offered type.
 $savedtype = (string) $DB->get_field('tool_activitydates', 'modtype', ['courseid' => $courseid]);
-$requested = optional_param('modtype', '', PARAM_ALPHANUMEXT);
+$requested = $snapshot !== null ? $snapshot['modtype'] : optional_param('modtype', '', PARAM_ALPHANUMEXT);
 if ($requested !== '' && array_key_exists($requested, $types)) {
     $modtype = $requested;
 } else if ($savedtype !== '' && array_key_exists($savedtype, $types)) {
@@ -105,6 +146,7 @@ $mform = new activitydates_form($url->out(false), [
     'canlocks' => $canlocks,
     'hasdates' => $hasdates,
     'hasdue' => $hasdue,
+    'savedconfigs' => saved_configs::list($courseid),
 ]);
 
 if ($mform->is_cancelled()) {
@@ -172,7 +214,29 @@ if ($fromform = $mform->get_data()) {
     // Proposals, with the fixed fields kept.
     $source = preview_rows::SOURCE_PREVIEW;
 
-    if (isset($fromform->submitbutton) || isset($fromform->submitbutton2)) {
+    if (isset($fromform->saveconfig)) {
+        // Save a configuration of what the page posted; nothing else is written.
+        $posted = optional_param('tablefingerprint', '', PARAM_ALPHANUM);
+        if ($posted !== fingerprint::dates($settings, $selected, $hasdue, $haslocks($settings))) {
+            \core\notification::error(get_string('errortablestale', 'tool_activitydates'));
+        } else {
+            $name = saved_configs::clean_name((string) $fromform->configname);
+            $replaced = saved_configs::save($courseid, $name, saved_configs::snapshot(
+                $settings,
+                $selected,
+                $rowinputs,
+                $fixposted,
+                $notecmids ?? [],
+                $coursenotecmids ?? [],
+                $canmanage,
+                $canlocks
+            ));
+            $notice = $replaced ? 'configreplaced' : 'configsavednotice';
+            \core\notification::success(get_string($notice, 'tool_activitydates', s($name)));
+            // Re-show the posted table as it was saved.
+            $source = preview_rows::SOURCE_LOADED;
+        }
+    } else if (isset($fromform->submitbutton) || isset($fromform->submitbutton2)) {
         $posted = optional_param('tablefingerprint', '', PARAM_ALPHANUM);
         if ($posted !== fingerprint::dates($settings, $selected, $hasdue, $haslocks($settings))) {
             // The table was built from other settings: re-render fresh proposals.
@@ -250,6 +314,27 @@ if ($fromform = $mform->get_data()) {
         $coursenotecmids = $readnotes('shownotecourse_cmids');
     }
     $fixposted = $readfix();
+} else if ($snapshot !== null) {
+    // A loaded configuration: its settings and table, limited to what this user may edit
+    // and to the activities the course still has.
+    $settings = activitydates::settings_from_form(
+        saved_configs::form_data($snapshot, $loaded, $canmanage, $canlocks),
+        $courseid,
+        (int) $loaded->id
+    );
+    $parts = saved_configs::table_parts($snapshot, $validcmids, $editablefor($settings), $fixable, $canlocks);
+    $selected = $parts['selected'];
+    $rowinputs = $parts['rows'];
+    $fixposted = $parts['hold'];
+    if ($canlocks) {
+        $notecmids = $parts['notes'];
+        $coursenotecmids = $parts['coursenotes'];
+    }
+    $source = preview_rows::SOURCE_LOADED;
+    \core\notification::info(get_string('configloaded', 'tool_activitydates', s($loadedconfig->name)));
+    if ($parts['dropped'] > 0) {
+        \core\notification::warning(get_string('configdropped', 'tool_activitydates', $parts['dropped']));
+    }
 } else if ($canmanage) {
     $selected = activitydates::saved_selection((int) $settings->id, $validcmids);
 } else {
@@ -266,9 +351,10 @@ if ($fromform = $mform->get_data()) {
     $selected = array_values(array_intersect($validcmids, $lockcmids));
 }
 
-// On Preview the engine keeps the ticked fields at their posted (or current) values.
+// On Preview (and for a loaded or just-saved configuration) the engine keeps the
+// ticked fields at their posted (or current) values.
 $enginefixed = null;
-if ($source === preview_rows::SOURCE_PREVIEW) {
+if ($source === preview_rows::SOURCE_PREVIEW || $source === preview_rows::SOURCE_LOADED) {
     $enginefixed = fn(array $rows): array => preview_rows::engine_fixed($rows, $fixposted, $rowinputs, $fixable, $tz);
 }
 $tabledata = $manager->get_table_data($settings, $selected, $hasdates, $enginefixed);
@@ -278,7 +364,8 @@ if ($canlocks) {
     locks_viewed::create(['context' => $context])->trigger();
 }
 
-$mform->set_data($settings);
+// A loaded configuration's name fills the name box, so saving again replaces it.
+$mform->set_data($loadedconfig ? (object) ((array) $settings + ['configname' => $loadedconfig->name]) : $settings);
 $mform->set_selection($selected);
 
 $showmarks = $modtype === 'quiz';
@@ -296,6 +383,7 @@ echo $OUTPUT->render_from_template('tool_activitydates/modtable', [
     'fingerprint' => fingerprint::dates($settings, $selected, $hasdue, $haslocks($settings)),
     'showlocks' => $showlocks,
     'fixhelp' => (new \core\output\help_icon('hold', 'tool_activitydates'))->export_for_template($OUTPUT),
+    'hasrows' => !empty($tabledata),
     'tabledata' => preview_rows::dates($tabledata, $tz, [
         'source' => $source,
         'fields' => $fields,

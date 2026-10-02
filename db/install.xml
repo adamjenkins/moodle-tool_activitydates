@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="admin/tool/activitydates/db" VERSION="2026092902" COMMENT="XMLDB file for Moodle tool_activitydates"
+<XMLDB PATH="admin/tool/activitydates/db" VERSION="2026100200" COMMENT="XMLDB file for Moodle tool_activitydates"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd">
   <TABLES>
@@ -86,6 +86,23 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="cmidfield" UNIQUE="true" FIELDS="cmid, field" COMMENT="One flag per activity and date"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="tool_activitydates_saved" COMMENT="Named configurations of the Activity dates page, saved per course">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="ID of the course the configuration belongs to"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The configuration's name, unique within the course"/>
+        <FIELD NAME="data" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="JSON snapshot of the page's settings, ticks and table dates"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp of creation"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp of last modification"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_course" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="coursename" UNIQUE="true" FIELDS="courseid, name" COMMENT="One configuration per name in a course"/>
       </INDEXES>
     </TABLE>
   </TABLES>

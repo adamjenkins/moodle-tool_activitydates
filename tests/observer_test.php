@@ -49,11 +49,17 @@ final class observer_test extends \advanced_testcase {
                     (object) ['courseid' => $courseid, 'cmid' => $courseid, 'field' => $field, 'timemodified' => 1]
                 );
             }
+            $DB->insert_record('tool_activitydates_saved', (object) ['courseid' => $courseid, 'name' => 'Reading', 'data' => '{}']);
         }
 
         delete_course($doomed, false);
 
-        $expected = ['tool_activitydates' => 1, 'tool_activitydates_lock' => 1, 'tool_activitydates_fixed' => 2];
+        $expected = [
+            'tool_activitydates' => 1,
+            'tool_activitydates_lock' => 1,
+            'tool_activitydates_fixed' => 2,
+            'tool_activitydates_saved' => 1,
+        ];
         foreach ($expected as $table => $count) {
             $this->assertSame(0, $DB->count_records($table, ['courseid' => $doomed->id]));
             $this->assertSame($count, $DB->count_records($table, ['courseid' => $kept->id]));

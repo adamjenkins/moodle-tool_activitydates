@@ -35,6 +35,9 @@ final class preview_rows {
     /** @var string the inputs re-show the posted values (a Save with row errors). */
     public const SOURCE_POSTED = 'posted';
 
+    /** @var string the inputs show a loaded configuration's values, else the proposals. */
+    public const SOURCE_LOADED = 'loaded';
+
     /** @var string[] the date fields, in display order. */
     private const FIELDS = ['timeopen', 'duedate', 'timeclose', 'timelock'];
 
@@ -124,7 +127,9 @@ final class preview_rows {
      * - SOURCE_CURRENT: the current value;
      * - SOURCE_PREVIEW: a fixed field's posted string (the current value when
      *   nothing was posted), else the proposal;
-     * - SOURCE_POSTED: the posted string.
+     * - SOURCE_POSTED: the posted string;
+     * - SOURCE_LOADED: the loaded configuration's string (in rowinputs), else the
+     *   proposal, so a field the configuration does not hold is never shown empty.
      *
      * A Fix checkbox is editable on a selected row for a field the user may fix
      * ($options['fixable']). Rows also get their grade-lock note ticks (posted
@@ -189,6 +194,8 @@ final class preview_rows {
                 $value = $current;
                 if ($enabled && $source === self::SOURCE_POSTED) {
                     $value = $posted ?? '';
+                } else if ($enabled && $source === self::SOURCE_LOADED) {
+                    $value = $posted ?? datefields::to_input((int) ($row['proposed'][$field] ?? 0), $tz);
                 } else if ($enabled && $source === self::SOURCE_PREVIEW) {
                     if ($fixed) {
                         $value = $posted ?? $current;

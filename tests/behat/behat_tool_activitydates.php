@@ -271,6 +271,29 @@ class behat_tool_activitydates extends behat_base {
     }
 
     /**
+     * Delete an activity straight away, as a teacher would from the course page.
+     *
+     * The recycle bin is switched off first, so the module goes now and not after a backup.
+     *
+     * @Given /^the activity "(?P<idnumber>[^"]*)" is deleted$/
+     *
+     * @param string $idnumber The activity idnumber.
+     */
+    public function the_activity_is_deleted(string $idnumber): void {
+        global $CFG;
+        require_once($CFG->dirroot . '/course/lib.php');
+        set_config('coursebinenable', 0, 'tool_recyclebin');
+        $cm = $this->get_cm_by_idnumber($idnumber);
+        // Moodle 5.2 moved the deletion into the course format actions.
+        $cmactions = new \core_courseformat\local\cmactions(get_course($cm->course));
+        if (method_exists($cmactions, 'delete')) {
+            $cmactions->delete((int) $cm->id);
+        } else {
+            course_delete_module((int) $cm->id);
+        }
+    }
+
+    /**
      * Find a course module by idnumber.
      *
      * @param string $idnumber The activity idnumber.
