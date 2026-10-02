@@ -141,7 +141,8 @@ $manager = new activitydates();
 $tz = core_date::get_user_timezone_object();
 $validcmids = array_map('intval', array_keys(activitydates::get_modules($settings)));
 
-$mform = new activitydates_form($url->out(false), [
+// Built again after Save configuration, so its list shows the configuration just saved.
+$buildform = fn(): activitydates_form => new activitydates_form($url->out(false), [
     'courseid' => $courseid,
     'modules' => array_map(fn(array $type): string => $type['label'], $types),
     'modtype' => $modtype,
@@ -157,6 +158,7 @@ $mform = new activitydates_form($url->out(false), [
         fn(stdClass $config): bool => saved_configs::can_delete($config, $canmanage, $canlocks)
     )),
 ]);
+$mform = $buildform();
 
 if ($mform->is_cancelled()) {
     redirect(new moodle_url('/course/view.php', ['id' => $courseid]));
@@ -242,6 +244,9 @@ if ($fromform = $mform->get_data()) {
             ), $canmanage, $canlocks);
             $notice = $replaced ? 'configreplaced' : 'configsavednotice';
             \core\notification::success(get_string($notice, 'tool_activitydates', s($name)));
+            // The form's list was built before the save; build it again so the list includes it.
+            // The posted values still fill the rebuilt form.
+            $mform = $buildform();
             // Re-show the posted table as it was saved.
             $source = preview_rows::SOURCE_LOADED;
         }

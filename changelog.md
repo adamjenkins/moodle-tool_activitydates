@@ -2,6 +2,13 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- Save configuration rebuilds the form after saving, so its list includes the
+  configuration just saved (the list was built before the save).
+
 ## [2.2.0] - 2026-10-02
 
 ### Added

@@ -47,6 +47,9 @@ Feature: Save, load and delete configurations, and filter the table by name
     And I set the field "Configuration name" to "Week plan"
     When I press "Save configuration"
     Then I should see "Configuration \"Week plan\" saved."
+    # The list shows the configuration just saved, on the same page.
+    And I expand all fieldsets
+    And "Week plan" "table_row" should exist
     # Saving a configuration re-shows the page as it was and writes nothing.
     And the "timeopen" date input of "Quiz1" should be "2030-01-01T10:30"
     And the "timeopen" of "quiz1" should be "0"

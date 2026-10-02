@@ -1,5 +1,10 @@
 # Changes
 
+## Unreleased
+
+- Fixed: a configuration just saved now shows in the Saved configurations list
+  straight away; before, it appeared only after the page was loaded again.
+
 ## v2.2.0
 
 Adds saved configurations and a name filter for the table.
