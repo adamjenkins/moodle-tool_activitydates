@@ -2,7 +2,7 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
-## [Unreleased]
+## [2.2.1] - 2026-10-02
 
 ### Fixed
 
