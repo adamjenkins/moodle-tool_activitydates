@@ -2,6 +2,19 @@
 
 All notable changes to `tool_activitydates` are documented in this file.
 
+## [2.2.2] - 2026-10-04
+
+### Added
+
+- `.github/workflows/camp-release.yml`: tagged releases are published to the
+  camp plugin registry.
+
+### Changed
+
+- CI tests `MOODLE_503_STABLE` (blocking rows: PHP 8.3-8.4, PostgreSQL 17,
+  MariaDB 11.4) instead of the experimental moodle.git `main` rows, now that
+  Moodle 5.3 is released.
+
 ## [2.2.1] - 2026-10-02
 
 ### Fixed

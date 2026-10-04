@@ -1,6 +1,8 @@
 # Changes
 
-## v2.2.1
+## v2.2.2
 
-- Fixed: a configuration just saved now shows in the Saved configurations list
-  straight away; before, it appeared only after the page was loaded again.
+- Automated testing now covers the released Moodle 5.3 (MOODLE_503_STABLE)
+  instead of Moodle's development branch.
+- Tagged releases are published to the camp plugin registry.
+- No change to the plugin's behaviour.
