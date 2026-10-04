@@ -5,14 +5,12 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    # moodle.git main rows are experimental: their failures do not fail the workflow.
-    continue-on-error: ${{ matrix.experimental == true }}
 
     services:
       postgres:
         # Per MOODLE_502_STABLE's version block in public/admin/environment.xml, the minimum
         # PostgreSQL is 16. Re-verify against environment.xml before bumping this down.
-        # main (5.3) needs PostgreSQL 17 (environment.xml 5.3 block), set per row via matrix.pgsql-image.
+        # MOODLE_503_STABLE (5.3) needs PostgreSQL 17 (environment.xml 5.3 block), set per row via matrix.pgsql-image.
         image: ${{ matrix.pgsql-image || 'postgres:16' }}
         env:
           POSTGRES_USER: postgres
@@ -26,7 +24,7 @@ jobs:
           --health-retries 3
 
       mariadb:
-        # MOODLE_502_STABLE minimum MariaDB is 10.11; main (5.3) needs MariaDB 11.4
+        # MOODLE_502_STABLE minimum MariaDB is 10.11; MOODLE_503_STABLE (5.3) needs MariaDB 11.4
         # (environment.xml 5.3 block), set per row via matrix.mariadb-image.
         image: ${{ matrix.mariadb-image || 'mariadb:10.11' }}
         env:
@@ -44,23 +42,21 @@ jobs:
 
     strategy:
       fail-fast: false
-      # CI covers the latest supported branch on its newest PHP, plus non-blocking
-      # moodle.git main (5.3) rows (experimental rows never fail the workflow).
+      # CI covers MOODLE_502_STABLE on its newest PHP, plus blocking MOODLE_503_STABLE
+      # (5.3) rows at its PHP floor and ceiling (8.3-8.4, environment.xml 5.3 block).
       matrix:
         php: ['8.4']
         moodle-branch: ['MOODLE_502_STABLE']
         database: ['pgsql', 'mariadb']
         include:
           - php: '8.4'
-            moodle-branch: 'main'
+            moodle-branch: 'MOODLE_503_STABLE'
             database: 'pgsql'
-            experimental: true
             pgsql-image: 'postgres:17'
             mariadb-image: 'mariadb:11.4'
           - php: '8.3'
-            moodle-branch: 'main'
+            moodle-branch: 'MOODLE_503_STABLE'
             database: 'mariadb'
-            experimental: true
             pgsql-image: 'postgres:17'
             mariadb-image: 'mariadb:11.4'
 
@@ -141,8 +137,8 @@ jobs:
         run: moodle-plugin-ci mustache
 
       - name: Grunt
-        # Committed amd/build bundles are built with the 5.2 toolchain; skip on main.
-        if: ${{ !cancelled() && matrix.moodle-branch != 'main' }}
+        # Committed amd/build bundles are built with the 5.2 toolchain; skip on MOODLE_503_STABLE.
+        if: ${{ !cancelled() && matrix.moodle-branch != 'MOODLE_503_STABLE' }}
         run: moodle-plugin-ci grunt
 
       - name: PHPUnit tests
