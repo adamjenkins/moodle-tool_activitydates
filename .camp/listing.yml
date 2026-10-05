@@ -20,9 +20,21 @@ labels:
   #   fully-free | freemium | paid-service | external-account
   #   donation-supported | commercial-support-available
   - fully-free
-# screenshots:
-#   - path: .camp/screenshots/overview.png
-#     caption: Main view
+screenshots:
+  - path: .camp/screenshots/01-activity-dates-page.png
+    caption: 'The Activity dates page: set a course''s schedule once and preview the open and close dates of every activity'
+  - path: .camp/screenshots/02-settings-form.png
+    caption: 'The schedule settings: start date, session length and the other options that drive the dates'
+  - path: .camp/screenshots/03-dates-table.png
+    caption: The preview table, with Hold boxes to keep any single open or close date as it is
+  - path: .camp/screenshots/04-saved-configurations.png
+    caption: 'Saved configurations: two schedules saved for the same course, ready to load again'
+  - path: .camp/screenshots/05-configuration-loaded.png
+    caption: 'A saved configuration loaded back: nothing changes until you apply it'
+  - path: .camp/screenshots/06-name-filter.png
+    caption: 'The name filter: only the matching activities are shown, and select all ticks just those'
+  - path: .camp/screenshots/07-site-defaults.png
+    caption: Site defaults for the Activity dates page
 # links:
 #   docs: https://…
 #   issues: https://…
