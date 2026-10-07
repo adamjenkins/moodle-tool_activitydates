@@ -21,6 +21,7 @@
  * changed. The select-alls act on the rows the filter shows only.
  *
  * @module     tool_activitydates/modform
+ * @copyright  2022 Marcus Green
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

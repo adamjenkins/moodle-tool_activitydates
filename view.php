@@ -18,6 +18,7 @@
  * Course-level bulk activity dates and grade lock scheduling page.
  *
  * @package    tool_activitydates
+ * @copyright  2022 Marcus Green
  * @copyright  2026 Adam Jenkins <adam@wisecat.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
